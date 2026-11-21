@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>守望 · 第二夜</title>
+<style>
+  :root{
+    --ink:#06070a;
+    --smoke:#8a8f98;
+    --fire:#e08a3c;
+    --bell:#6f9aa8;
+    --dim:#5a616a;
+    --serif:"Songti SC","Songti","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif;
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--ink);overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #c{display:block;width:100%;height:100%;touch-action:none}
+
+  .layer{position:fixed;inset:0;pointer-events:none;
+    font-family:var(--serif);color:#cfd4da}
+
+  /* 信用刻度：细线，不提示数值 */
+  #credit{position:fixed;top:26px;right:28px;width:88px;height:1px;
+    background:rgba(255,255,255,.07);pointer-events:none}
+  #credit i{display:block;height:1px;width:50%;background:rgba(207,212,218,.55);
+    transition:width .9s ease,opacity .9s ease}
+
+  /* 提示 */
+  #hint{position:fixed;left:0;right:0;bottom:64px;text-align:center;
+    font-size:13px;letter-spacing:.34em;color:var(--dim);
+    pointer-events:none;transition:opacity 1.1s ease;text-indent:.34em}
+
+  /* 观感行 */
+  #reveals{position:fixed;left:32px;bottom:128px;max-width:44vw;
+    font-size:15px;line-height:2.1;letter-spacing:.08em;color:#aab0b8;
+    pointer-events:none}
+  #reveals div{opacity:0;animation:fadein .9s ease forwards}
+  @keyframes fadein{to{opacity:1}}
+
+  /* 标题卡 */
+  #title{position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;
+    transition:opacity 1.2s ease}
+  #title .h{font-size:clamp(30px,6vw,52px);letter-spacing:.5em;color:#e6eaee;text-indent:.5em}
+  #title .s{margin-top:22px;font-size:12.5px;letter-spacing:.4em;color:var(--dim);text-indent:.4em}
+  #title .l1,#title .l2{margin-top:34px;font-size:clamp(13px,2vw,14.5px);
+    letter-spacing:.2em;color:#8b949e;opacity:0;transition:opacity 1.8s ease;text-indent:.2em}
+  #title .l2{margin-top:12px}
+
+  /* 结算 */
+  #dawn{position:fixed;inset:0;display:none;flex-direction:column;
+    align-items:center;justify-content:center;background:#06070a;
+    padding:40px 28px;text-align:center;pointer-events:auto;overflow-y:auto}
+  #dawn.on{display:flex;animation:fadein 1.6s ease}
+  #dawn .k{font-size:11.5px;letter-spacing:.42em;color:var(--dim);margin-bottom:30px;text-indent:.42em}
+  #dawn .line{font-size:clamp(15px,2.4vw,18px);line-height:2.3;color:#c2c8d0;
+    letter-spacing:.08em;margin:0 0 6px}
+  #dawn .hot{color:#e8b98c}
+  #dawn .cold{color:var(--bell)}
+  #dawn .final{margin-top:34px;font-size:13.5px;line-height:2.2;color:var(--dim);
+    letter-spacing:.1em;opacity:0;transition:opacity 2.4s ease}
+  #dawn .final.on{opacity:1}
+  #dawn .quote{margin-top:44px;font-size:clamp(14px,2.1vw,16.5px);line-height:2;
+    color:#98a2ac;letter-spacing:.14em;opacity:0;transition:opacity 2.4s ease}
+  #dawn .quote.on{opacity:1}
+  #dawn .cite{margin-top:10px;font-size:11.5px;letter-spacing:.18em;color:#464d55;
+    opacity:0;transition:opacity 1.8s ease}
+  #dawn .cite.on{opacity:1}
+  #dawn .again{margin-top:38px;font-family:var(--serif);font-size:13px;
+    letter-spacing:.3em;color:var(--dim);background:none;border:1px solid #22262d;
+    padding:11px 24px;cursor:pointer;text-indent:.3em;transition:all .2s}
+  #dawn .again:hover{color:#e6eaee;border-color:#3d444d}
+
+  #mute{position:fixed;top:22px;left:24px;font-family:var(--sans);font-size:11px;
+    letter-spacing:.2em;color:#3d444d;background:none;border:none;cursor:pointer;
+    pointer-events:auto;padding:6px}
+  #mute:hover{color:var(--dim)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="credit"><i></i></div>
+<button id="mute">音</button>
+<div id="reveals"></div>
+<div id="hint"></div>
+
+<div id="title">
+  <div class="h">第 二 夜</div>
+  <div class="s">宁村所外　四月廿三</div>
+  <div class="l1">海上若有影，按住不放，雾会退。</div>
+  <div class="l2">松手。要报，就按住火盆。</div>
+</div>
+
+<div id="dawn"></div>
+
+<script>
+(function(){
+"use strict";
+
+// ─────────────────────────────────────────────
+//  基础
+// ─────────────────────────────────────────────
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+const $ = s => document.querySelector(s);
+let W = 0, H = 0, DPR = 1;
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cvs.width = W * DPR; cvs.height = H * DPR;
+  cvs.style.width = W + 'px'; cvs.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const HORIZON = () => H * 0.48;
+const SLICES = ['left', 'center', 'right'];
+
+// 投柴：第 n 束要在按住多久后落进火盆（第一束跟手，后两束有重量）
+const BUNDLE_DUE = [0.42, 1.2, 2.0];
+const FONT_SERIF = '"Songti SC","Songti","Noto Serif CJK SC","SimSun",serif';
+
+function sliceOf(x){
+  if (x < W / 3) return 'left';
+  if (x < W * 2 / 3) return 'center';
+  return 'right';
+}
+
+// ─────────────────────────────────────────────
+//  声音（无外部资源，WebAudio 合成）
+// ─────────────────────────────────────────────
+const Audio_ = {
+  ctx: null, master: null, on: false, windGain: null,
+  init(){
+    if (this.ctx) return;
+    try{
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.0;
+      this.master.connect(this.ctx.destination);
+
+      // 风：棕噪声 + 低通
+      const len = this.ctx.sampleRate * 3;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++){
+        const white = Math.random() * 2 - 1;
+        last = (last + 0.02 * white) / 1.02;
+        d[i] = last * 3.2;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 340;
+      this.windGain = this.ctx.createGain();
+      this.windGain.gain.value = 0.55;
+      src.connect(lp); lp.connect(this.windGain); this.windGain.connect(this.master);
+      src.start();
+      this.on = true;
+    }catch(e){ /* 静默失败 */ }
+  },
+  setMuted(m){
+    if (!this.ctx) return;
+    this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.master.gain.linearRampToValueAtTime(m ? 0 : 0.16, this.ctx.currentTime + 0.4);
+  },
+  bell(){
+    if (!this.ctx || !this.on) return;
+    const t = this.ctx.currentTime;
+    [233.1, 349.2, 466.3].forEach((f, i) => {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.10 / (i + 1), t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+      o.connect(g); g.connect(this.master);
+      o.start(t); o.stop(t + 3.8);
+    });
+  },
+  flare(){
+    if (!this.ctx || !this.on) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(120, t);
+    o.frequency.exponentialRampToValueAtTime(52, t + 0.5);
+    g.gain.setValueAtTime(0.14, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.8);
+  },
+  // 柴落进火盆：一声闷响，火苗窜一下
+  bundle(){
+    if (!this.ctx || !this.on) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(82, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.16);
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.3);
+
+    const len = Math.floor(this.ctx.sampleRate * 0.3);
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = 0.8;
+    const g2 = this.ctx.createGain(); g2.gain.value = 0.1;
+    src.connect(bp); bp.connect(g2); g2.connect(this.master);
+    src.start(t + 0.03);
+  }
+};
+
+// ─────────────────────────────────────────────
+//  夜的内容
+// ─────────────────────────────────────────────
+// level: 真实规模（0 = 无，1 小股，2 大队）
+const NIGHT = [
+  {
+    id: 'e1',
+    arrive: 26,
+    hint: '',
+    entities: [
+      { slice: 'center', shape: 'sail', ox: 0, dy: 0, level: 1,
+        reveals: ['一个。', '不快。', '后面拖着一条小艇。'] }
+    ],
+    threat: { level: 1, slice: 'center' }
+  },
+  {
+    id: 'e2',
+    arrive: 22,
+    entities: [
+      { slice: 'center', shape: 'wreck', ox: 0, dy: 0, level: 0,
+        reveals: ['一个。', '停着。', '没有桨，也没有帆。'] }
+    ],
+    threat: { level: 0, slice: 'center' }
+  },
+  {
+    id: 'e3',
+    arrive: 28,
+    entities: [
+      { slice: 'left',  shape: 'dots', ox: -10, dy: 4, level: 0,
+        reveals: ['两个。', '走得很急。', '船头挂着网。'] },
+      { slice: 'center', shape: 'sail', ox: 6, dy: 0, level: 2,
+        reveals: ['一个。', '帆张满。', '吃水深。'] }
+    ],
+    threat: { level: 2, slice: 'center' }
+  },
+  {
+    id: 'e4',
+    arrive: 32,
+    entities: [
+      { slice: 'left',   shape: 'dots', ox: -8, dy: 3, level: 2,
+        reveals: ['两个。', '不快。', '拖着三条小艇。'] },
+      { slice: 'center', shape: 'sail', ox: 4, dy: 0, level: 0,
+        reveals: ['一个。', '帆张满。', '吃水很浅。'] },
+      { slice: 'right',  shape: 'wreck', ox: 0, dy: 2, level: 0,
+        reveals: ['一个。', '停着。', '断了。'] }
+    ],
+    threat: { level: 2, slice: 'left' }
+  }
+];
+
+// ─────────────────────────────────────────────
+//  状态
+// ─────────────────────────────────────────────
+const G = {
+  phase: 'intro',      // intro | idle | encounter | report | resolve | dawn
+  phaseT: 0,
+  credit: 5,
+  idx: -1,
+  enc: null,
+  looking: false,
+  litSlice: null,
+  holdT: 0,
+  pressT: 0,
+  coachRevealed: false,
+  sawNeighbour: false,
+  sliceEnterT: 0,
+  reveals: [],         // {text, born}
+  log: [],
+  lost: [],            // {place, n}
+  dawnLines: [],
+  dawnFinal: '',
+  muted: false,
+  neighbour: 0,        // 邻墩灯的动画相位
+  neighbourBlink: 0,   // >0 时发光
+  neighbourState: 'idle',
+  nightOver: false,
+  burned: 0,           // 这一夜烧掉的总柴束
+  coachReport: false,  // 「按住火盆」只提示一次
+  stacking: false,     // 正在按住火盆投柴
+  ackQueue: [],        // 邻墩回执的时点
+  ackBlink: 0,
+  fire: { level: 0, stackT: 0, confirm: 0, smoke: [], label: null }
+};
+
+function reset(){
+  G.phase = 'intro'; G.phaseT = 0; G.credit = 5; G.idx = -1; G.enc = null;
+  G.looking = false; G.litSlice = null; G.holdT = 0; G.pressT = 0;
+  G.coachRevealed = false; G.sawNeighbour = false;
+  G.reveals = []; G.log = []; G.lost = [];
+  G.dawnLines = []; G.dawnFinal = ''; G.nightOver = false;
+  G.neighbourBlink = 0; G.neighbourState = 'idle';
+  G.burned = 0; G.coachReport = false; G.stacking = false;
+  G.ackQueue = []; G.ackBlink = 0;
+  G.fire = { level: 0, stackT: 0, confirm: 0, smoke: [], label: null };
+  $('#dawn').classList.remove('on');
+  $('#dawn').innerHTML = '';
+  $('#reveals').innerHTML = '';
+  $('#title').style.opacity = '1';
+  const _l1 = $('#title .l1'), _l2 = $('#title .l2');
+  if (_l1) _l1.style.opacity = '0';
+  if (_l2) _l2.style.opacity = '0';
+  $('#hint').style.opacity = '1';
+  updateCredit();
+}
+
+function updateCredit(){
+  const pct = Math.max(0, Math.min(100, (G.credit / 10) * 100));
+  const bar = $('#credit i');
+  bar.style.width = pct + '%';
+  bar.style.opacity = G.credit <= 1 ? '0.25' : '1';
+}
+
+// ─────────────────────────────────────────────
+//  遭遇
+// ─────────────────────────────────────────────
+function startEncounter(i){
+  const data = NIGHT[i];
+  G.idx = i;
+  G.phase = 'encounter';
+  G.phaseT = 0;
+  G.enc = {
+    data,
+    elapsed: 0,
+    entities: data.entities.map(e => ({
+      ...e,
+      revealed: 0,
+      dist: 0
+    })),
+    resolved: false,
+    result: null
+  };
+  G.looking = false;
+  G.litSlice = null;
+  G.holdT = 0;
+  G.pressT = 0;
+  G.sliceEnterT = 0;
+  G.reveals = [];
+  $('#reveals').innerHTML = '';
+  G.fire.level = 0; G.fire.stackT = 0; G.fire.confirm = 0; G.fire.label = null;
+  const HINTS = {
+    e1: ['按住　看', 999999],
+    e3: ['左右各有一处　你只能看一处', 5400],
+    e4: ['三格　你一次只能照亮一格', 5400]
+  };
+  const h = HINTS[data.id];
+  setHint(h ? h[0] : '', h ? h[1] : 0);
+
+  // 邻墩：第三夜之外，偶尔亮一下
+  if (data.id === 'e3' || data.id === 'e4'){
+    G.neighbourState = 'blink';
+  }
+}
+
+let hintTimer = null;
+function setHint(text, hold){
+  const el = $('#hint');
+  clearTimeout(hintTimer);
+  if (!text){ el.style.opacity = '0'; return; }
+  el.textContent = text;
+  el.style.opacity = '1';
+  hintTimer = setTimeout(() => { el.style.opacity = '0'; }, hold || 4600);
+}
+
+function entitiesIn(slice){
+  if (!G.enc || !slice) return [];
+  return G.enc.entities.filter(e => e.slice === slice);
+}
+
+function pushReveal(text){
+  const box = $('#reveals');
+  const el = document.createElement('div');
+  el.textContent = text;
+  box.appendChild(el);
+  // 最多保留 4 行
+  while (box.children.length > 4) box.removeChild(box.firstChild);
+  G.reveals.push({ text });
+
+  // 第一次看清：提示可以松手了
+  if (G.idx === 0 && !G.coachRevealed){
+    G.coachRevealed = true;
+    setHint('松手', 999999);
+  }
+}
+
+function beginLook(x){
+  if (G.phase !== 'encounter' || !G.enc) return;
+  G.looking = true;
+  G.pressT = 0;
+  G.litSlice = sliceOf(x);
+  G.sliceEnterT = G.holdT;
+  Audio_.init();
+  Audio_.setMuted(G.muted);
+}
+
+function moveLook(x){
+  if (!G.looking) return;
+  const s = sliceOf(x);
+  if (s !== G.litSlice){
+    G.litSlice = s;
+    G.sliceEnterT = G.holdT;
+  }
+}
+
+function endLook(){
+  if (!G.looking) return;
+  // 误触：按一下就松，不算「看完」
+  if (G.pressT < 0.45){
+    G.looking = false;
+    G.litSlice = null;
+    setHint('按住不放　雾才会退', 2400);
+    return;
+  }
+  G.looking = false;
+  if (G.phase === 'encounter' && G.enc && !G.enc.resolved){
+    G.phase = 'report';
+    G.phaseT = 0;
+    if (!G.coachReport){
+      G.coachReport = true;
+      setHint('按住火盆　投几束，报几级', 999999);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  火盆投柴：按住投柴，几束就是几级，烟起即发出
+// ─────────────────────────────────────────────
+function inFireZone(x, y){
+  return Math.abs(x - W / 2) < 54 && y > H - 96;
+}
+
+function beginFire(){
+  Audio_.init();
+  Audio_.setMuted(G.muted);
+  if (G.phase === 'encounter'){
+    G.phase = 'report';
+    G.phaseT = 0;
+  }
+  G.stacking = true;
+  G.fire.stackT = 0;
+  G.fire.confirm = 0;
+  setHint('', 0);
+}
+
+function endFire(){
+  if (!G.stacking) return;
+  G.stacking = false;
+  // 松手后烟再走一拍，才算送到；这一拍里还能再添柴
+  if (G.fire.level >= 1) G.fire.confirm = 1.35;
+}
+
+function throwBundle(){
+  if (G.fire.level >= 3) return;
+  G.fire.level++;
+  G.burned++;
+  G.fire.smoke.push({ t0: clock, ph: G.fire.smoke.length * 1.9 });
+  G.fire.label = { text: ['一级　小股', '二级　成队', '三级　大举'][G.fire.level - 1], born: clock };
+  Audio_.bundle();
+}
+
+// 结算本次遭遇
+function resolveEncounter(reported){
+  if (!G.enc || G.enc.resolved) return;
+  G.stacking = false;
+  G.fire.confirm = 0;
+  const enc = G.enc;
+  const data = enc.data;
+  const threat = data.threat;
+  let lines = [];
+  let dC = 0;
+  let fatal = false;
+
+  // 看了哪些格子、看到第几层
+  const seen = {};
+  enc.entities.forEach(e => { seen[e.slice] = Math.max(seen[e.slice] || 0, e.revealed); });
+
+  if (data.id === 'e1'){
+    if (reported === null || reported === 0){
+      lines = ['你没报。', '天亮时，墩下有三道湿脚印。', '梅头，三户。'];
+      dC = -1; G.lost.push({ place: '梅头', n: 3 });
+    } else if (reported === 1){
+      lines = ['你烧了一柱烟。', '卫所来了一小队。', '人到了，够了。'];
+      dC = +2;
+    } else if (reported === 2){
+      lines = ['你烧了两柱烟。', '卫所来了一队，比要的多。', '海上什么都没有。', '校尉没说话。'];
+      dC = -2;
+    } else {
+      lines = ['你烧了三柱烟。', '来的是备倭的参将。', '他站了很久，什么也没说。'];
+      dC = -3;
+    }
+  }
+
+  else if (data.id === 'e2'){
+    if (reported === null || reported === 0){
+      if ((seen.center || 0) >= 3){
+        lines = ['你没报。', '天亮，那截桅还在。', '是去年的。'];
+        dC = +1;
+      } else {
+        lines = ['你没报。', '你没看仔细。', '那截桅是去年的。'];
+        dC = 0;
+      }
+    } else {
+      lines = ['你烧了' + ['一', '两', '三'][reported - 1] + '柱烟。',
+               '卫所来了一队。', '海上只有一截断桅。'];
+      dC = -2;
+    }
+  }
+
+  else if (data.id === 'e3'){
+    const lookedCenter = (seen.center || 0) >= 3;
+    const lookedLeft = (seen.left || 0) >= 3;
+    if (reported === 2){
+      lines = ['你烧了两柱烟。', '卫所至，倭船退。', '西边那两条，是晚归的渔船。'];
+      dC = +2;
+    } else if (reported === 1){
+      lines = ['你烧了一柱烟。', '卫所来了一小队。', '不够。倭已登岸，掠去七户。'];
+      dC = +1; G.lost.push({ place: '金岙', n: 7 });
+    } else if (reported === 3){
+      lines = ['你烧了三柱烟。', '参将亲至。', '倭船早已折返。', '烟散得很慢。'];
+      dC = -3;
+    } else {
+      if (lookedLeft && !lookedCenter){
+        lines = ['你看了左边，确认是渔船。', '你没报。', '你也没有看中间。', '倭自中格登岸。', '梅头，十七户。'];
+      } else if (lookedCenter && !lookedLeft){
+        lines = ['你看见了那条船的吃水。', '你没报。', '倭自中格登岸。', '梅头，十七户。'];
+      } else {
+        lines = ['你没报。', '倭自中格登岸。', '梅头，十七户。'];
+      }
+      dC = -3; G.lost.push({ place: '梅头', n: 17 });
+    }
+  }
+
+  else if (data.id === 'e4'){
+    const lookedLeft = (seen.left || 0) >= 3;
+    const lookedRight = (seen.right || 0) >= 1;
+    const lookedCenter = (seen.center || 0) >= 3;
+
+    if (reported === 2){
+      lines = ['你烧了两柱烟。', '卫所至。倭退于滩头。', '梅头，未破。', '那三条小艇，没能靠岸。'];
+      dC = +2;
+    } else if (reported === 1){
+      lines = ['你烧了一柱烟。', '人到了，不够。', '倭退了一半。', '梅头，九户。'];
+      dC = +1; G.lost.push({ place: '梅头', n: 9 });
+    } else if (reported === 3){
+      lines = ['三柱烟。', '整个卫所都动了。', '你烧掉的是三个月的信用。', '倭退了。梅头保住了。'];
+      dC = -2;
+    } else {
+      if (lookedRight && !lookedLeft){
+        lines = ['右格：一截断桅，漂着。', '你没报。', '你没报错。', '倭自左格登岸。', '梅头，十七户。'];
+      } else if (lookedCenter && !lookedLeft){
+        lines = ['你看的是中间那条。', '吃水很浅，是条空船。', '它整夜都在那儿。', '倭自左格登岸。', '梅头，十七户。'];
+      } else if (lookedLeft){
+        lines = ['你看见了。', '三条小艇。', '你没报。', '梅头，十七户。'];
+      } else {
+        lines = ['你什么都没看。', '倭自左格登岸。', '梅头，十七户。'];
+      }
+      dC = -3; G.lost.push({ place: '梅头', n: 17 }); fatal = true;
+    }
+  }
+
+  G.credit = Math.max(0, Math.min(10, G.credit + dC));
+  updateCredit();
+  G.log.push(...lines);
+  Audio_.flare();
+
+  // 邻墩回执：烧几柱烟回几下；信用见底，就没有回音
+  if (reported !== null && reported >= 1 && G.credit > 1){
+    for (let i = 0; i < reported; i++) G.ackQueue.push(clock + 1.7 + i * 0.62);
+  }
+
+  enc.resolved = true;
+  enc.result = { lines, dC, fatal };
+  G.phase = 'resolve';
+  G.phaseT = 0;
+  G.dawnLines = lines;
+  showResolve(lines, dC);
+}
+
+// 结算文字作为短暂覆盖层
+function showResolve(lines, dC){
+  const box = $('#reveals');
+  box.innerHTML = '';
+  lines.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.textContent = t;
+    el.style.animationDelay = (i * 0.45) + 's';
+    el.style.color = i === 0 ? '#e6eaee' : '#9aa1aa';
+    box.appendChild(el);
+  });
+}
+
+function afterResolve(){
+  const enc = G.enc;
+  if (!enc) return;
+  if (enc.result && enc.result.fatal){
+    endNight(true);
+    return;
+  }
+  if (G.idx >= NIGHT.length - 1){
+    endNight(false);
+    return;
+  }
+  G.phase = 'idle';
+  G.phaseT = 0;
+  G.enc = null;
+  G.litSlice = null;
+  $('#reveals').innerHTML = '';
+  if (!G.sawNeighbour){
+    G.sawNeighbour = true;
+    setHint('邻墩的灯　你烧几柱，它回几下', 5200);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  天亮
+// ─────────────────────────────────────────────
+function endNight(fatal){
+  G.phase = 'dawn';
+  G.nightOver = true;
+  $('#reveals').innerHTML = '';
+  $('#hint').style.opacity = '0';
+
+  const cn = n => {
+    const dg = ['零','一','二','三','四','五','六','七','八','九'];
+    if (n < 10) return dg[n];
+    if (n < 20) return '十' + (n % 10 ? dg[n % 10] : '');
+    return dg[Math.floor(n / 10)] + '十' + (n % 10 ? dg[n % 10] : '');
+  };
+  const d = $('#dawn');
+  let html = '';
+  html += '<div class="k">' + (fatal ? '失 守' : '第 二 夜 · 天 亮') + '</div>';
+
+  if (fatal){
+    html += '<p class="line">天没亮，事就完了。</p>';
+  } else {
+    html += '<p class="line">四月廿四，天亮。</p>';
+  }
+
+  if (G.lost.length){
+    const byPlace = {};
+    G.lost.forEach(x => { byPlace[x.place] = (byPlace[x.place] || 0) + x.n; });
+    const places = Object.keys(byPlace)
+      .map(k => ({ place: k, n: byPlace[k] }))
+      .sort((a, b) => b.n - a.n);
+    const first = places[0];
+    html += '<p class="line hot">' + first.place + '，' + cn(first.n) + '户。</p>';
+    const rest = places.slice(1).reduce((s, x) => s + x.n, 0);
+    if (rest > 0) html += '<p class="line">另有' + cn(rest) + '户，在别处。</p>';
+  } else {
+    html += '<p class="line">梅头，十七户。都在。</p>';
+  }
+
+  html += '<p class="line">' + (G.burned > 0
+    ? '这一夜，烧了' + cn(G.burned) + '束柴。'
+    : '这一夜，火盆是冷的。') + '</p>';
+
+  let final = '';
+  if (fatal){
+    final = '天亮的时候，邻墩的灯还亮着。';
+  } else if (G.credit >= 6){
+    final = '邻墩的灯，亮了整夜。';
+  } else if (G.credit >= 3){
+    final = '邻墩的灯，子时以后没再亮。';
+  } else {
+    final = '远处没有灯。你已经很久没看见灯了。';
+  }
+  html += '<p class="final" id="finalLine">' + final + '</p>';
+  html += '<p class="quote" id="quoteLine">彼此凭依，守望相助，庶几缓急得力。</p>';
+  html += '<p class="cite" id="citeLine">王叔果《请筑堡疏》</p>';
+  html += '<button class="again" id="again">再 来 一 夜</button>';
+
+  d.innerHTML = html;
+  d.classList.add('on');
+
+  setTimeout(() => {
+    const f = document.getElementById('finalLine');
+    if (f) f.classList.add('on');
+  }, 1800);
+  setTimeout(() => {
+    const q = document.getElementById('quoteLine');
+    if (q) q.classList.add('on');
+  }, 4200);
+  setTimeout(() => {
+    const c = document.getElementById('citeLine');
+    if (c) c.classList.add('on');
+  }, 5400);
+
+  document.getElementById('again').addEventListener('click', () => {
+    reset();
+  });
+}
+
+// ─────────────────────────────────────────────
+//  更新
+// ─────────────────────────────────────────────
+let last = performance.now();
+let clock = 0;
+
+function update(dt){
+  clock += dt;
+  G.phaseT += dt;
+  G.neighbour += dt;
+
+  if (G.neighbourBlink > 0) G.neighbourBlink = Math.max(0, G.neighbourBlink - dt * 0.55);
+
+  // 邻墩回执：到点闪一下
+  for (let i = G.ackQueue.length - 1; i >= 0; i--){
+    if (clock >= G.ackQueue[i]){ G.ackQueue.splice(i, 1); G.ackBlink = 1; }
+  }
+  if (G.ackBlink > 0) G.ackBlink = Math.max(0, G.ackBlink - dt * 2.4);
+
+  // 标题卡
+  if (G.phase === 'intro'){
+    if (G.phaseT > 1.5) $('#title .l1').style.opacity = '1';
+    if (G.phaseT > 2.9) $('#title .l2').style.opacity = '1';
+    if (G.phaseT > 4.7) $('#title').style.opacity = '0';
+    if (G.phaseT > 5.7) startEncounter(0);
+    return;
+  }
+
+  // 投柴：按住火盆，柴一束一束落
+  if (G.stacking){
+    G.fire.stackT += dt;
+    while (G.fire.level < 3 && G.fire.stackT >= BUNDLE_DUE[G.fire.level]) throwBundle();
+  }
+  if (G.fire.confirm > 0 && !G.stacking && G.phase === 'report'){
+    G.fire.confirm -= dt;
+    if (G.fire.confirm <= 0){ G.fire.confirm = 0; resolveEncounter(G.fire.level); }
+  }
+
+  // 遭遇推进
+  if ((G.phase === 'encounter' || G.phase === 'report') && G.enc && !G.enc.resolved){
+    const enc = G.enc;
+    enc.elapsed += dt;
+    enc.entities.forEach(e => {
+      e.dist = Math.min(1, enc.elapsed / enc.data.arrive);
+    });
+
+    // 看：按时间逐层揭开
+    if (G.looking){
+      G.holdT += dt;
+      G.pressT += dt;
+      const list = entitiesIn(G.litSlice);
+      list.forEach(e => {
+        const due = G.sliceEnterT + (e.revealed + 1) * 1.30;
+        if (e.revealed < e.reveals.length && G.holdT >= due){
+          e.revealed++;
+          pushReveal(e.reveals[e.revealed - 1]);
+        }
+      });
+    }
+
+    // 时间到了：烟已经起来的按烟算，没起的等于没报
+    if (enc.elapsed >= enc.data.arrive){
+      G.looking = false;
+      resolveEncounter(G.fire.level >= 1 ? G.fire.level : null);
+    }
+  }
+
+  else if (G.phase === 'resolve'){
+    if (G.phaseT > 4.6) afterResolve();
+  }
+
+  else if (G.phase === 'idle'){
+    if (G.phaseT > 2.2){
+      const next = G.idx + 1;
+      if (next < NIGHT.length) startEncounter(next);
+      else endNight(false);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  绘制
+// ─────────────────────────────────────────────
+// 没照亮时：只是一团，认不出形制
+function drawSmudge(x, y, s, seed){
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = 'rgba(3,4,6,0.62)';
+  for (let i = 0; i < 3; i++){
+    const a = seed * 1.7 + i * 2.1;
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * 7, Math.sin(a) * 1.8,
+                9 + Math.sin(a) * 2.2, 4.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBoat(x, y, s, shape, clarity, lit){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  const ink = 'rgba(4,5,7,0.94)';
+  ctx.fillStyle = ink;
+
+  if (shape === 'sail'){
+    // 船身
+    ctx.beginPath(); ctx.ellipse(0, 0, 24, 4.4, 0, 0, Math.PI * 2); ctx.fill();
+    // 桅
+    ctx.fillRect(-0.7, -27, 1.4, 27);
+    // 帆
+    ctx.beginPath();
+    ctx.moveTo(1.2, -26); ctx.lineTo(1.2, -7); ctx.lineTo(15, -8.5);
+    ctx.closePath(); ctx.fill();
+    // 后帆
+    ctx.beginPath();
+    ctx.moveTo(-1.4, -22); ctx.lineTo(-1.4, -9); ctx.lineTo(-8, -10);
+    ctx.closePath(); ctx.fill();
+  }
+  else if (shape === 'dots'){
+    ctx.beginPath(); ctx.ellipse(-13, 0, 8, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(11, 2, 8, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(-14, -9, 0.9, 9);
+    ctx.fillRect(10, -7, 0.9, 7);
+  }
+  else if (shape === 'wreck'){
+    ctx.save();
+    ctx.rotate(-0.34);
+    ctx.fillRect(-16, -1, 30, 2.4);
+    ctx.restore();
+    ctx.beginPath(); ctx.ellipse(-6, 3, 7, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // 轮廓：未照亮时是一道冷灰边，照亮后转为暖色
+  {
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    const base = lit ? (0.10 + clarity * 0.16) : (0.05 + clarity * 0.05);
+    ctx.strokeStyle = lit
+      ? 'rgba(224,138,60,' + base + ')'
+      : 'rgba(176,188,200,' + base + ')';
+    ctx.lineWidth = 1.1 / s;
+    if (shape === 'sail'){
+      ctx.beginPath();
+      ctx.moveTo(1.2, -26); ctx.lineTo(1.2, -7); ctx.lineTo(15, -8.5);
+      ctx.closePath(); ctx.stroke();
+    } else if (shape === 'wreck'){
+      ctx.beginPath();
+      ctx.moveTo(-16, -1); ctx.lineTo(14, -1);
+      ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.ellipse(-13, 0, 8, 2.6, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(11, 2, 8, 2.6, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function draw(){
+  const hz = HORIZON();
+
+  // 天
+  let g = ctx.createLinearGradient(0, 0, 0, hz);
+  g.addColorStop(0, '#050609');
+  g.addColorStop(0.62, '#080a0e');
+  g.addColorStop(1, '#0d1014');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, hz);
+
+  // 海
+  g = ctx.createLinearGradient(0, hz, 0, H);
+  g.addColorStop(0, '#0d1116');
+  g.addColorStop(0.35, '#0a0d11');
+  g.addColorStop(1, '#06080a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, hz, W, H - hz);
+
+  // 海面细纹
+  ctx.save();
+  for (let i = 0; i < 26; i++){
+    const y = hz + 10 + i * ((H - hz) / 28);
+    const p = i / 26;
+    const off = Math.sin(clock * 0.22 + i * 1.7) * (8 + p * 26);
+    ctx.strokeStyle = 'rgba(140,160,175,' + (0.018 + p * 0.028) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.06 + off, y);
+    ctx.lineTo(W * 0.94 + off * 0.4, y + Math.sin(clock * 0.3 + i) * 1.2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 地平线
+  ctx.strokeStyle = 'rgba(160,175,190,0.09)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, hz); ctx.lineTo(W, hz); ctx.stroke();
+
+  // 三格分界
+  ctx.strokeStyle = 'rgba(160,175,190,0.028)';
+  [W / 3, W * 2 / 3].forEach(x => {
+    ctx.beginPath(); ctx.moveTo(x, hz - 40); ctx.lineTo(x, H); ctx.stroke();
+  });
+
+  // 雾
+  drawFog(hz);
+
+  // 被照亮的一格
+  if (G.looking && G.litSlice){
+    const i = SLICES.indexOf(G.litSlice);
+    const x0 = Math.max(0, (i === 0 ? 0 : W * i / 3) - 10);
+    const bandW = W / 3 + 20;
+    const lg = ctx.createLinearGradient(0, hz - 70, 0, H);
+    lg.addColorStop(0, 'rgba(224,138,60,0.00)');
+    lg.addColorStop(0.3, 'rgba(224,138,60,0.020)');
+    lg.addColorStop(1, 'rgba(224,138,60,0.035)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(x0, hz - 70, bandW, H - hz + 70);
+
+    const rg = ctx.createLinearGradient(x0, 0, x0 + bandW, 0);
+    rg.addColorStop(0, 'rgba(200,215,230,0)');
+    rg.addColorStop(0.5, 'rgba(200,215,230,0.035)');
+    rg.addColorStop(1, 'rgba(200,215,230,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(x0, hz - 70, bandW, H - hz + 70);
+  }
+
+  // 影子
+  if (G.enc){
+    G.enc.entities.forEach(e => {
+      const idx = SLICES.indexOf(e.slice);
+      const cx = W * (idx + 0.5) / 3 + e.ox + (e.dy || 0);
+      const d = e.dist;
+      const y = hz + 6 + d * (H - hz) * 0.30;
+      const s = 0.42 + d * 1.5;
+      const lit = G.looking && G.litSlice === e.slice;
+      const clarity = e.revealed / 3;
+
+      // 水面被扰动的一圈
+      const halo = ctx.createRadialGradient(cx, y, 0, cx, y, 54 * s);
+      halo.addColorStop(0, 'rgba(150,168,182,' + (lit ? 0.075 : 0.045) + ')');
+      halo.addColorStop(1, 'rgba(150,168,182,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(cx, y, 54 * s, 0, Math.PI * 2); ctx.fill();
+
+      if (lit){
+        ctx.globalAlpha = 0.60 + clarity * 0.40;
+        drawBoat(cx, y, s, e.shape, clarity, true);
+        ctx.globalAlpha = 1;
+      } else {
+        drawSmudge(cx, y, s, idx + e.ox);
+      }
+    });
+  }
+
+  // 火盆与烟
+  if (G.phase !== 'intro' && G.phase !== 'dawn') drawHearth();
+
+  // 邻墩的灯
+  drawNeighbour(hz);
+
+  // 时间压力：边缘压暗
+  if ((G.phase === 'encounter' || G.phase === 'report') && G.enc && !G.enc.resolved){
+    const p = G.enc.elapsed / G.enc.data.arrive;
+    if (p > 0.55){
+      const v = (p - 0.55) / 0.45;
+      const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.28,
+                                          W / 2, H / 2, Math.max(W, H) * 0.72);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,' + (v * 0.55) + ')');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+}
+
+function drawFog(hz){
+  const t = clock;
+  const blobs = [
+    { x: 0.26, y: 0.46, r: 0.52, a: 0.055, sp: 0.13 },
+    { x: 0.72, y: 0.53, r: 0.46, a: 0.045, sp: -0.09 },
+    { x: 0.52, y: 0.40, r: 0.62, a: 0.035, sp: 0.06 }
+  ];
+  blobs.forEach(b => {
+    const x = (b.x + Math.sin(t * b.sp) * 0.05) * W;
+    const y = (b.y + Math.cos(t * b.sp * 0.7) * 0.03) * H;
+    const r = b.r * Math.max(W, H) * 0.62;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(150,163,175,' + b.a + ')');
+    g.addColorStop(0.55, 'rgba(150,163,175,' + (b.a * 0.35) + ')');
+    g.addColorStop(1, 'rgba(150,163,175,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  });
+
+  // 海面雾带
+  const g2 = ctx.createLinearGradient(0, hz - 10, 0, H);
+  g2.addColorStop(0, 'rgba(170,182,194,0.045)');
+  g2.addColorStop(0.22, 'rgba(170,182,194,0.015)');
+  g2.addColorStop(1, 'rgba(170,182,194,0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, hz - 10, W, H - hz + 10);
+}
+
+function drawNeighbour(hz){
+  const x = W - 42;
+  const y = hz - 26;
+  const breathe = 0.35 + Math.sin(clock * 0.9) * 0.12;
+  let a = breathe * 0.5;
+  if (G.neighbourBlink > 0) a = Math.max(a, G.neighbourBlink * 0.95);
+  if (G.ackBlink > 0) a = Math.max(a, G.ackBlink * 0.95);
+  if (G.credit <= 1) a *= 0.25;
+
+  const g = ctx.createRadialGradient(x, y, 0, x, y, 34);
+  g.addColorStop(0, 'rgba(111,154,168,' + a + ')');
+  g.addColorStop(0.35, 'rgba(111,154,168,' + (a * 0.35) + ')');
+  g.addColorStop(1, 'rgba(111,154,168,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, 34, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = 'rgba(111,154,168,' + Math.min(1, a * 1.5) + ')';
+  ctx.beginPath(); ctx.arc(x, y, 1.7, 0, Math.PI * 2); ctx.fill();
+}
+
+// ─────────────────────────────────────────────
+//  火盆与烟
+// ─────────────────────────────────────────────
+function drawHearth(){
+  const fx = W / 2;
+  const fy = H - 54;
+  const active = G.phase === 'report';
+
+  // 剩下的柴，堆在火盆左边；投一束少一束
+  const left = 3 - G.fire.level;
+  for (let i = 0; i < left; i++){
+    const bx = fx - 44 + i * 13;
+    const by = fy - 2 + (i % 2) * 3;
+    ctx.strokeStyle = 'rgba(122,106,86,' + (active ? 0.8 : 0.42) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bx - 6, by + 3); ctx.lineTo(bx + 6, by - 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx - 5, by - 3); ctx.lineTo(bx + 5, by + 3); ctx.stroke();
+  }
+
+  // 石盆
+  ctx.fillStyle = '#07080b';
+  ctx.strokeStyle = 'rgba(150,160,172,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(fx - 24, fy - 13);
+  ctx.lineTo(fx + 24, fy - 13);
+  ctx.lineTo(fx + 16, fy + 8);
+  ctx.lineTo(fx - 16, fy + 8);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // 炭火
+  const glow = (active ? 0.48 : 0.2) + Math.sin(clock * 2.1) * 0.05 + (G.stacking ? 0.14 : 0);
+  const eg = ctx.createRadialGradient(fx, fy - 9, 0, fx, fy - 9, 22);
+  eg.addColorStop(0, 'rgba(224,138,60,' + Math.min(0.8, glow).toFixed(3) + ')');
+  eg.addColorStop(1, 'rgba(224,138,60,0)');
+  ctx.fillStyle = eg;
+  ctx.beginPath(); ctx.arc(fx, fy - 9, 22, 0, Math.PI * 2); ctx.fill();
+
+  // 烟
+  G.fire.smoke.forEach(s => drawSmoke(fx, fy - 12, s));
+
+  // 级数标签
+  if (G.fire.label){
+    const a = Math.max(0, 1 - (clock - G.fire.label.born) / 2.4);
+    if (a > 0){
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#b9906a';
+      ctx.font = '13px ' + FONT_SERIF;
+      ctx.textAlign = 'center';
+      ctx.fillText(G.fire.label.text, fx, fy - 32);
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+// 一柱烟：一串往上飘、被风带偏的灰点
+function drawSmoke(fx, fy, s){
+  const age = clock - s.t0;
+  for (let i = 0; i < 13; i++){
+    const t = age - i * 0.34;
+    if (t <= 0) break;
+    const al = 0.15 - t * 0.02;
+    if (al <= 0) break;
+    const y = fy - (t * 34 + t * t * 7);
+    if (y < 24) break;
+    const x = fx + Math.sin(t * 1.5 + s.ph) * 7 + t * 9;
+    const r = 3.5 + t * 2.4;
+    ctx.fillStyle = 'rgba(150,160,175,' + al.toFixed(3) + ')';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// ─────────────────────────────────────────────
+//  主循环
+// ─────────────────────────────────────────────
+function loop(now){
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ─────────────────────────────────────────────
+//  输入
+// ─────────────────────────────────────────────
+cvs.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const x = e.clientX, y = e.clientY;
+  if (inFireZone(x, y)){
+    if ((G.phase === 'encounter' || G.phase === 'report') && G.enc && !G.enc.resolved) beginFire();
+    return;
+  }
+  if (G.phase === 'encounter') beginLook(x);
+  else if (G.phase === 'report' && G.fire.level === 0 && G.enc && !G.enc.resolved){
+    // 还没投柴：可以回头再看
+    G.phase = 'encounter';
+    G.phaseT = 0;
+    setHint('', 0);
+    beginLook(x);
+  }
+});
+cvs.addEventListener('pointermove', e => {
+  if (G.looking) moveLook(e.clientX);
+});
+window.addEventListener('pointerup', () => {
+  if (G.stacking) endFire();
+  else if (G.looking) endLook();
+});
+window.addEventListener('pointercancel', () => {
+  if (G.stacking) endFire();
+  else if (G.looking) endLook();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && G.phase === 'encounter' && !G.looking){
+    e.preventDefault();
+    beginLook(W / 2);
+  }
+  if (G.looking){
+    if (e.code === 'ArrowLeft')  moveLook(W * 0.16);
+    if (e.code === 'ArrowRight') moveLook(W * 0.84);
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') moveLook(W * 0.5);
+  }
+  // 数字键投柴：每按一下投一束，停手一拍后即发出
+  if ((e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') &&
+      (G.phase === 'encounter' || G.phase === 'report') && G.enc && !G.enc.resolved){
+    Audio_.init();
+    Audio_.setMuted(G.muted);
+    if (G.phase === 'encounter'){ G.phase = 'report'; G.phaseT = 0; }
+    throwBundle();
+    G.fire.confirm = 1.35;
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'Space' && G.looking) endLook();
+});
+
+$('#mute').addEventListener('click', e => {
+  e.stopPropagation();
+  G.muted = !G.muted;
+  Audio_.init();
+  Audio_.setMuted(G.muted);
+  $('#mute').style.color = G.muted ? '#2a2e34' : '#3d444d';
+});
+
+reset();
+if (/[?&]dev=1/.test(location.search)){
+  window.__dbg = { G, reset, startEncounter, update, draw, endNight };
+}
+})();
+</script>
+</body>
+</html>

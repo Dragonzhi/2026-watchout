@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>守望 · 设计文档 v0.1</title>
+<style>
+  :root{
+    --ink:#0d0f12;
+    --panel:#15181d;
+    --panel2:#1a1e24;
+    --line:#262b33;
+    --text:#d5d9de;
+    --dim:#7d858f;
+    --smoke:#8a8f98;
+    --fire:#e08a3c;
+    --bell:#6f9aa8;
+    --serif:"Songti SC","Songti","Noto Serif CJK SC","Source Han Serif SC",serif;
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:16px;
+    line-height:1.85;
+    letter-spacing:.01em;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:72px 32px 120px}
+  @media(max-width:640px){.wrap{padding:48px 20px 80px}}
+
+  /* 封面 */
+  header.cover{padding:24px 0 56px;border-bottom:1px solid var(--line);margin-bottom:56px}
+  .kicker{font-size:12px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin-bottom:28px}
+  h1{font-family:var(--serif);font-size:clamp(52px,11vw,88px);line-height:1;margin:0 0 20px;font-weight:500;letter-spacing:.12em}
+  h1 .dot{color:var(--fire)}
+  .sub{font-family:var(--serif);font-size:17px;color:var(--smoke);letter-spacing:.06em;margin:0 0 32px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12.5px;color:var(--dim);letter-spacing:.05em}
+  .meta b{color:var(--smoke);font-weight:500}
+
+  /* 章节 */
+  section{margin:0 0 72px}
+  h2{
+    font-family:var(--serif);font-size:13px;font-weight:500;letter-spacing:.3em;
+    color:var(--bell);margin:0 0 8px;text-transform:uppercase;
+  }
+  h2 + .h2sub{font-family:var(--serif);font-size:27px;line-height:1.4;margin:0 0 26px;font-weight:500;letter-spacing:.04em}
+  h3{font-family:var(--serif);font-size:18px;font-weight:500;margin:38px 0 12px;letter-spacing:.05em;color:#e8ebef}
+  h3 .n{color:var(--dim);font-size:13px;margin-right:10px;letter-spacing:.1em}
+  p{margin:0 0 18px}
+  p.lead{font-family:var(--serif);font-size:19px;line-height:1.9;color:#e2e6ea}
+  strong{color:#f0f2f5;font-weight:600}
+  em{font-style:normal;color:var(--fire)}
+  .dim{color:var(--dim)}
+  .small{font-size:13.5px;line-height:1.75;color:var(--dim)}
+  a{color:var(--bell)}
+
+  /* 引文 */
+  blockquote{
+    margin:26px 0;padding:20px 26px;border-left:2px solid var(--bell);
+    background:var(--panel);font-family:var(--serif);font-size:17px;line-height:1.95;
+    color:#c9cfd6;
+  }
+  blockquote cite{display:block;margin-top:12px;font-size:12.5px;font-style:normal;color:var(--dim);letter-spacing:.08em;font-family:var(--sans)}
+
+  /* 命题条 */
+  .thesis{
+    margin:34px 0;padding:30px 32px;background:var(--panel);
+    border:1px solid var(--line);border-radius:2px;
+  }
+  .thesis .lbl{font-size:11.5px;letter-spacing:.3em;color:var(--fire);margin-bottom:14px}
+  .thesis .txt{font-family:var(--serif);font-size:23px;line-height:1.65;letter-spacing:.05em;color:#f2f4f6}
+  @media(max-width:640px){.thesis .txt{font-size:19px}}
+
+  /* 卡片 */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:26px 28px;margin:26px 0}
+  .card > :last-child{margin-bottom:0}
+
+  /* 图 */
+  figure{margin:34px 0}
+  figure svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{font-size:12.5px;color:var(--dim);margin-top:14px;letter-spacing:.06em;line-height:1.7}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;margin:24px 0;font-size:14.5px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.14em;color:var(--dim);font-weight:500;text-transform:uppercase}
+  td b{color:#f0f2f5;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;color:var(--fire);font-weight:600}
+
+  /* 三色 */
+  .swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:26px 0}
+  @media(max-width:640px){.swatches{grid-template-columns:1fr}}
+  .sw{border:1px solid var(--line);border-radius:2px;overflow:hidden;background:var(--panel)}
+  .sw .bar{height:52px}
+  .sw .body{padding:14px 16px}
+  .sw .name{font-family:var(--serif);font-size:16px;letter-spacing:.1em;margin-bottom:4px}
+  .sw .desc{font-size:12.5px;color:var(--dim);line-height:1.6}
+
+  /* 流程 */
+  .steps{counter-reset:s;margin:26px 0;padding:0;list-style:none}
+  .steps li{
+    counter-increment:s;position:relative;padding:0 0 22px 44px;
+    border-left:1px solid var(--line);margin-left:9px;
+  }
+  .steps li:last-child{border-left-color:transparent;padding-bottom:0}
+  .steps li::before{
+    content:counter(s);position:absolute;left:-10px;top:-2px;width:20px;height:20px;
+    border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+    font-size:11px;color:var(--dim);text-align:center;line-height:19px;
+  }
+  .steps .t{font-weight:600;color:#f0f2f5;display:block;margin-bottom:4px}
+  .steps .d{font-size:14.5px;color:#b9c0c8;line-height:1.75}
+
+  /* 烽簿 */
+  .ledger{
+    background:#0b0d10;border:1px solid var(--line);border-radius:2px;padding:28px 30px;margin:26px 0;
+    font-family:var(--serif);
+  }
+  .ledger .row{font-size:15.5px;line-height:2.25;color:#a9b1ba;letter-spacing:.04em}
+  .ledger .row .d{color:var(--dim);margin-right:16px;font-size:13px}
+  .ledger .row.hot{color:#e6eaee}
+  .ledger .row.hot .d{color:var(--fire)}
+  .ledger .blank{height:10px}
+  .ledger-note{font-size:12px;color:var(--dim);margin-top:16px;font-family:var(--sans);letter-spacing:.05em;line-height:1.7}
+
+  /* 屏幕骨架 */
+  .screen{border:1px solid var(--line);border-radius:2px;background:#0a0c0e;margin:26px 0;padding:0;overflow:hidden}
+  .screen .row{display:flex;min-height:70px;border-bottom:1px solid #1c2027;align-items:center;justify-content:space-between;padding:14px 18px}
+  .screen .row:last-child{border-bottom:none}
+  .screen .lab{font-size:12.5px;color:var(--dim);letter-spacing:.1em}
+  .screen .val{font-size:13px;color:var(--smoke)}
+
+  /* 风险 */
+  .risk{border-left:2px solid #8a4b3c;padding-left:20px;margin:22px 0}
+  .risk .t{font-weight:600;color:#e5c0b4;display:block;margin-bottom:5px;font-size:15.5px}
+  .risk .d{font-size:14.5px;color:#b9c0c8;line-height:1.8}
+
+  ul.plain{margin:20px 0;padding-left:0;list-style:none}
+  ul.plain li{position:relative;padding-left:20px;margin-bottom:12px;font-size:15px;line-height:1.8}
+  ul.plain li::before{content:"·";position:absolute;left:4px;color:var(--bell);font-weight:700}
+
+  .qbox{background:var(--panel2);border:1px dashed var(--line);border-radius:2px;padding:24px 26px;margin:26px 0}
+  .qbox ol{margin:0;padding-left:22px}
+  .qbox li{margin-bottom:12px;font-size:15px;line-height:1.8;color:#b9c0c8}
+  .qbox li:last-child{margin-bottom:0}
+  .qbox li b{color:#f0f2f5}
+
+  footer{border-top:1px solid var(--line);padding-top:28px;margin-top:80px;font-size:12.5px;color:var(--dim);letter-spacing:.05em;line-height:1.9}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <div class="kicker">OSGJ 2026 · 设计文档</div>
+  <h1>守望<span class="dot">。</span></h1>
+  <p class="sub">一个人、一座墩、一条会撒谎的烽火。</p>
+  <div class="meta">
+    <span><b>版本</b> v0.1 概念稿</span>
+    <span><b>日期</b> 2026-11-21</span>
+    <span><b>题</b> 守望</span>
+    <span><b>方向</b> 抗倭叙事 / 城堡防御 / 未来想象 交叉</span>
+    <span><b>目标</b> 最佳玩法或最佳创意 + 文化传承创新</span>
+    <span><b>引擎</b> Godot 4（待定验证）</span>
+  </div>
+</header>
+
+<!-- ========== 一 ========== -->
+<section>
+  <h2>Ⅰ 题解</h2>
+  <p class="h2sub">“守望”被所有人做成了守城，但它本来讲的是互看。</p>
+
+  <p class="lead">一个字关于当下，一个字关于远方。守是空间的，抵御、把持，需要威胁在场。望是时间的，眺望、守候，需要距离和等待。这是最表层的拆法，也是大多数人会停下的地方。</p>
+
+  <p>往下挖一层，会挖到词源。这个词不是从战争里长出来的，是从井田制里长出来的。</p>
+
+  <blockquote>
+    死徙无出乡，乡田同井，出入相友，守望相助，疾病相扶持，则百姓亲睦。
+    <cite>《孟子·滕文公上》</cite>
+  </blockquote>
+
+  <p>八家共一井，田连在一起，人不出乡。这句话描述的是一个邻里网络：<strong>谁看见谁家进了贼，就喊一声。</strong>守望相助指的是我替你看着你的盲区，你替我看着我背后的那一侧。</p>
+
+  <p>所以守望的结构里其实有三方，不是两方。我、远方的东西、还有替我看着另一侧的人。</p>
+
+  <figure>
+    <svg viewBox="0 0 780 330" role="img" aria-label="守望的三方结构">
+      <defs>
+        <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#6f9aa8"/>
+        </marker>
+        <marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#48505a"/>
+        </marker>
+      </defs>
+
+      <!-- 远方 -->
+      <rect x="290" y="28" width="200" height="64" rx="2" fill="#1a1e24" stroke="#262b33"/>
+      <text x="390" y="56" text-anchor="middle" fill="#8a8f98" font-size="14" font-family="serif">远方</text>
+      <text x="390" y="76" text-anchor="middle" fill="#5d646d" font-size="11">看不全，看不清</text>
+
+      <!-- 望：我 -> 远方 -->
+      <path d="M256 216 L 352 96" fill="none" stroke="#6f9aa8" stroke-width="1.4" marker-end="url(#ar)"/>
+      <text x="266" y="152" fill="#9dc3cd" font-size="14" font-family="serif">望</text>
+
+      <!-- 望：邻 -> 远方 -->
+      <path d="M524 216 L 428 96" fill="none" stroke="#6f9aa8" stroke-width="1.4" marker-end="url(#ar)"/>
+      <text x="512" y="152" fill="#9dc3cd" font-size="14" font-family="serif">望</text>
+
+      <!-- 我 -->
+      <rect x="86" y="216" width="170" height="64" rx="2" fill="#1a1e24" stroke="#e08a3c" stroke-opacity=".55"/>
+      <text x="171" y="244" text-anchor="middle" fill="#e8ebef" font-size="14" font-family="serif">我</text>
+      <text x="171" y="264" text-anchor="middle" fill="#8a8f98" font-size="11">望得见，守不全</text>
+
+      <!-- 邻 -->
+      <rect x="524" y="216" width="170" height="64" rx="2" fill="#1a1e24" stroke="#262b33"/>
+      <text x="609" y="244" text-anchor="middle" fill="#8a8f98" font-size="14" font-family="serif">邻</text>
+      <text x="609" y="264" text-anchor="middle" fill="#5d646d" font-size="11">替我守背后</text>
+
+      <!-- 互守：双向虚线 -->
+      <path d="M266 240 L 514 240" fill="none" stroke="#8a8f98" stroke-width="1.3" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+      <path d="M514 258 L 266 258" fill="none" stroke="#8a8f98" stroke-width="1.3" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+      <text x="390" y="302" text-anchor="middle" fill="#8a8f98" font-size="12.5" font-family="serif">互相替对方看着背后的空档</text>
+    </svg>
+    <figcaption>三方结构。“望”是共有的，虚线是互相的。可是这条互相的链能不能站住，谁也无法事先验证。</figcaption>
+  </figure>
+
+  <p>于是守望的本质浮出来了：<strong>我的安全建立在另一个人是否可靠上，而这件事我无法验证。</strong></p>
+
+  <div class="thesis">
+    <div class="lbl">设计命题</div>
+    <div class="txt">守望的最终形态是信用，不是城墙。</div>
+  </div>
+
+  <p>城墙能守住的只有物理空间，守不住的是“别人还相不相信我”。而这后一件事，才是一个防御体系真正运转的燃料。</p>
+</section>
+
+<!-- ========== 二 ========== -->
+<section>
+  <h2>Ⅱ 史实骨架</h2>
+  <p class="h2sub">这套机制的骨架，在明代沿海真实运转过。</p>
+
+  <p>抗倭的海防线不是一条墙，是一张<span style="color:var(--bell)">信息网</span>。明代沿海设卫所，配巡檢司、烽堠、墩台、水寨，形成“海堠 → 卫所 → 水寨”的三级预警。墩台之间靠烟火接力，一棒接一棒地把敌情往内陆送。</p>
+
+  <p>而这条链的每一环，能力都非常有限。下面是几条可以直接当机制用的记录：</p>
+
+  <table>
+    <thead>
+      <tr><th style="width:30%">机制</th><th>史实记录</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>分级报警</b><br><span class="small">信息是被压扁的</span></td>
+        <td>按敌军规模举烟举火：不满百人 1 烟 1 火，500 人以上 2 烟 2 火，1000 人以上 3 烟 3 火，万人以上 5 烟 5 火。<br><span class="small">只能传数量级，传不了方向、装备、意图。</span></td>
+      </tr>
+      <tr>
+        <td><b>通道随天气切换</b><br><span class="small">自然在制造噪声</span></td>
+        <td>昼举烟（狼粪烟），夜举火，<b>大雾天敲钟</b>。<br><span class="small">钟声只能传“有情况”，传不了数量。雾天等于信息精度归零。</span></td>
+      </tr>
+      <tr>
+        <td><b>接力有延迟</b><br><span class="small">消息永远比事实旧</span></td>
+        <td>相邻墩堠约 15 分钟接力一次。<br><span class="small">延迟是可以设计的资源：它决定你必须在信息不全时动手。</span></td>
+      </tr>
+      <tr>
+        <td><b>驻守规模极小</b><br><span class="small">一个人管得过来</span></td>
+        <td>沿海墩台驻兵常在 8 至 10 人，配佛郎机、鸟铳。视野覆盖海面约 30 里。<br><span class="small">这个体量对单人开发非常友好，也解释了为什么守卒的判断直接等于整条链的质量。</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="small">以上数字来自公开科普材料与地方志转述，作为设计依据足够。<strong>但文化传承创新奖由文化评委复核准确性</strong>，正式制作前需要回到《练兵实纪》《筹海图编》一类原始文献或学术论文核实具体分级与年代地域差异。见文末考据说明。</p>
+</section>
+
+<!-- ========== 三 ========== -->
+<section>
+  <h2>Ⅲ 三色系统</h2>
+  <p class="h2sub">烟、火、钟。既是一套信号，也是一套视觉语言。</p>
+
+  <p>史实里的三种信号载体，恰好可以承担整个游戏的色彩编码。这条设计的好处是：它既解决了机制的信息通道问题，又顺手把美术压到极简。</p>
+
+  <div class="swatches">
+    <div class="sw">
+      <div class="bar" style="background:linear-gradient(180deg,#9aa0a8,#6d737b)"></div>
+      <div class="body">
+        <div class="name">烟</div>
+        <div class="desc">昼间通道。灰白，可见范围远，受风影响。<br>可承载级数。</div>
+      </div>
+    </div>
+    <div class="sw">
+      <div class="bar" style="background:linear-gradient(180deg,#f0a04e,#c46a20)"></div>
+      <div class="body">
+        <div class="name">火</div>
+        <div class="desc">夜间通道。暖橙，可穿透夜色，也暴露自身位置。<br>可承载级数。</div>
+      </div>
+    </div>
+    <div class="sw">
+      <div class="bar" style="background:linear-gradient(180deg,#89b3c0,#4f7784)"></div>
+      <div class="body">
+        <div class="name">钟</div>
+        <div class="desc">雾天通道。冷青，只能表达“有”，无法表达“多少”。<br>精度归零。</div>
+      </div>
+    </div>
+  </div>
+
+  <p>整场游戏只需要黑、雾白、以及这三色。这是主动选定的风格，也正好落在预算之内：你在雾里，看不清是真的看不清。</p>
+</section>
+
+<!-- ========== 四 ========== -->
+<section>
+  <h2>Ⅳ 核心机制</h2>
+  <p class="h2sub">望得越清，守得越晚。</p>
+
+  <p>核心是一个输入动作：<strong>按住看，松开报。</strong></p>
+
+  <p>影子出现在视野边缘时，你按住屏幕，雾会慢慢散开一点，影子变得清晰一点。但你松开手指之前不能做出任何决定，而海上的东西一直在靠近。</p>
+
+  <figure>
+    <svg viewBox="0 0 780 345" role="img" aria-label="确定度与危险的交叉">
+      <line x1="60" y1="270" x2="730" y2="270" stroke="#262b33"/>
+      <line x1="60" y1="270" x2="60" y2="30" stroke="#262b33"/>
+      <text x="395" y="332" text-anchor="middle" fill="#5d646d" font-size="12" font-family="serif">从影子出现起经过的时间</text>
+      <text x="26" y="150" fill="#5d646d" font-size="12" font-family="serif" transform="rotate(-90 26 150)">程度</text>
+
+      <!-- 确定度曲线 -->
+      <path d="M60 268 C 180 250, 320 200, 430 148 C 520 108, 600 88, 700 82"
+            fill="none" stroke="#6f9aa8" stroke-width="2"/>
+      <text x="706" y="76" fill="#6f9aa8" font-size="12.5" font-family="serif">看得清</text>
+
+      <!-- 危险度曲线 -->
+      <path d="M60 266 C 200 262, 330 250, 430 220 C 520 190, 570 120, 640 46"
+            fill="none" stroke="#e08a3c" stroke-width="2"/>
+      <text x="648" y="42" fill="#e08a3c" font-size="12.5" font-family="serif">来不及</text>
+
+      <!-- 交叉点 -->
+      <circle cx="447" cy="212" r="4" fill="#f0f2f5"/>
+      <line x1="447" y1="212" x2="447" y2="270" stroke="#3d444d" stroke-dasharray="4 4"/>
+      <text x="447" y="290" text-anchor="middle" fill="#8a8f98" font-size="12" font-family="serif">决断点</text>
+
+      <!-- 窗口 -->
+      <rect x="447" y="120" width="90" height="106" fill="#e08a3c" fill-opacity=".07"/>
+      <text x="492" y="112" text-anchor="middle" fill="#8a8f98" font-size="11.5" font-family="serif">可玩空间</text>
+    </svg>
+    <figcaption>两条曲线之间的缝，就是游戏。早报 = 误报，晚报 = 来不及。你永远在这个缝里赌。</figcaption>
+  </figure>
+
+  <p>这个输入设计把“望”和“守”压进了同一个动作的两端：<em>按住的那段时间属于望，松开的那一刻属于守</em>。玩家不需要理解任何规则，手指就会自己感受到那个矛盾。</p>
+
+  <h3><span class="n">01</span>报什么</h3>
+  <p>松开后有四个选择：不报、1 级、2 级、3 级。雾天只剩“敲钟”一个选项，无法报级数。</p>
+
+  <h3><span class="n">02</span>报的代价</h3>
+  <p>报出去的每一条都在消耗下游对你的信任。报准了回补，报高了扣得狠，长期不报也会扣，因为“你不在看”本身就是失职。信任低到一定程度，下游的响应会变慢、变少，直到不来。</p>
+
+  <h3><span class="n">03</span>你永远看不到全局</h3>
+  <p>你是链条上的一环，不是指挥。你的报信会真的影响下游，但你看不到那些影响，直到结算。</p>
+</section>
+
+<!-- ========== 五 ========== -->
+<section>
+  <h2>Ⅴ 一局流程</h2>
+  <p class="h2sub">一夜 = 一局。3 到 5 次相遇。</p>
+
+  <p>这里把整局的骨架写死，作为可玩性与工期的第一道验收。</p>
+
+  <ol class="steps">
+    <li>
+      <span class="t">入夜</span>
+      <span class="d">墩上火盆未点。海在雾里，只有浪声。右上角一个信用刻度，不动的时候它看起来像装饰。</span>
+    </li>
+    <li>
+      <span class="t">相遇</span>
+      <span class="d">雾的某一侧开了个口，出现影子。0 到数个。有的缓慢，有的直行，有的停下不动。此时你只能判断“有东西”。</span>
+    </li>
+    <li>
+      <span class="t">看</span>
+      <span class="d">按住。雾退开一点，影子的轮廓清晰一点，数量数得出来一点。同时海面上那条距离在缩短。松手之前无路可退。</span>
+    </li>
+    <li>
+      <span class="t">决断</span>
+      <span class="d">松手。四个选项。雾天只有钟。按下之后画面静止半秒，烟火升起或钟声荡开，然后进入下一段等待。</span>
+    </li>
+    <li>
+      <span class="t">等</span>
+      <span class="d">报信之后的一段时间，什么都不会发生。这是整个游戏最难受的部分，也是必须保留的部分。你在等一个你无法验证的回应。</span>
+    </li>
+    <li>
+      <span class="t">天亮结算</span>
+      <span class="d">真相揭晓：影子的真实身份与规模。下游的回应是否到达。信用变动。以及一行短句。</span>
+    </li>
+  </ol>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="n">终局</span>两种失败，一种结束</h3>
+    <ul class="plain">
+      <li><b>失守</b>：真实入侵而你没有报，直接终局。这一夜到此为止。</li>
+      <li><b>失信</b>：连续误报高级，信用见底，此后无人再来。游戏继续，但你已经是孤岛。</li>
+      <li><b>结束</b>：熬到汛期过去。结算不写“你赢了”，只写“这一年过去了”。</li>
+    </ul>
+  </div>
+
+  <p>一局 8 到 12 分钟，一夜 3 到 5 遇。总共 5 到 7 夜，构成一次完整的汛期。</p>
+</section>
+
+<!-- ========== 六 ========== -->
+<section>
+  <h2>Ⅵ 信用模型</h2>
+  <p class="h2sub">一个可以第一版就上、后面再调的起点。</p>
+
+  <p>信用 <code>C</code> 取值 0 到 10，初始为 5。它只影响一件事：<strong>下游响应到你这里需要多久、来多少人。</strong></p>
+
+  <table>
+    <thead><tr><th style="width:38%">事件</th><th style="width:18%">C 的变化</th><th>后果</th></tr></thead>
+    <tbody>
+      <tr><td>报准（级数相符）</td><td class="num">+2</td><td>下游及时到位</td></tr>
+      <tr><td>报低（实情更严重）</td><td class="num">+1</td><td>人到了，但不够</td></tr>
+      <tr><td>报高（实情更轻）</td><td class="num">−3</td><td>兵力被浪费，下一次更难要来</td></tr>
+      <tr><td>不报，且确无威胁</td><td class="num">−1</td><td>“你不在看”，无人察觉但账在记</td></tr>
+      <tr><td>不报，且确有威胁</td><td class="num">终局</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <p>把 <code>C</code> 映射到响应延迟，就能让“信用”变成一个玩家能感觉到的东西：C 高时，烟火起后很快有旗帜出现在远处；C 低时，你等到天亮，什么都没有。</p>
+
+  <p class="small">这组数字只是起点。真正的工作量在调参，不是写代码。第一版把事件表跑通，之后靠手感改。</p>
+</section>
+
+<!-- ========== 七 ========== -->
+<section>
+  <h2>Ⅶ 文化嵌入</h2>
+  <p class="h2sub">不用讲一个抗倭故事，让机制自己说。</p>
+
+  <p>文化传承创新奖的评法是“文化元素与核心玩法、叙事和互动体验的融合，以及文化表达的准确性”，并且明文写着单纯堆砌图片或文字不构成突出表现。</p>
+
+  <p>所以这里要做的是<strong>把史实里最反直觉的那部分抽出来做成规则</strong>，历史的质感由规则本身承担：</p>
+
+  <table>
+    <thead><tr><th style="width:32%">文化元素</th><th>在游戏里变成了什么</th></tr></thead>
+    <tbody>
+      <tr><td>分级举烽</td><td>玩家唯一能输出的信息，只有四个离散档位。信息在源头就被压掉了细节。</td></tr>
+      <tr><td>雾天敲钟</td><td>天气改变可用通道，精度被迫归零。玩家必须接受“只能喊一嗓子”。</td></tr>
+      <tr><td>烽堠接力</td><td>延迟是系统性的，不是你的失误。你永远在根据旧消息行动。</td></tr>
+      <tr><td>墩台八到十人</td><td>一个守卒的判断等于整条链的质量。这也是玩家身份成立的依据。</td></tr>
+      <tr><td>守望相助（孟子原义）</td><td>决定胜负的东西在你和下游之间的信任里，而不在你那一段防线上。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="thesis">
+    <div class="lbl">文化落点</div>
+    <div class="txt">四百年后，有人在七月十五抬着神像走过你守过的墩。他们走的那条路，就是你当年报警的方向。</div>
+  </div>
+
+  <p class="small">汤和信俗（农历七月十五“抬佛”巡境，2008 年入选第二批国家级非物质文化遗产）是这个游戏最自然的收束。巡境本质上是每年一次当着所有人的面确认“我还在，我还在看”，那是一场仪式化的信用维护。它和游戏的核心机制是同一件事，只是在不同的时间尺度上。</p>
+</section>
+
+<!-- ========== 八 ========== -->
+<section>
+  <h2>Ⅷ 碎片化叙事</h2>
+  <p class="h2sub">不写世界观，只留物证。</p>
+
+  <p>既然要避免大量文本和复杂设定，那就让所有文字都出现在<strong>本来就该简短的地方</strong>。整个游戏只保留四类文本载体：</p>
+
+  <h3><span class="n">01</span>烽簿</h3>
+  <p>墩上有一本册子，历代守卒记的日常。它天然就是电报体：只记要点，不写心情。而且因为有些人写不完就死了，条目会断在半句。</p>
+
+  <div class="ledger">
+    <div class="row"><span class="d">四月初一</span>雾。举钟。无人来。</div>
+    <div class="row"><span class="d">四月初四</span>夜。二火。卫所至，倭未至。校尉怒。</div>
+    <div class="row"><span class="d">四月十二</span>风大。看不久。</div>
+    <div class="row"><span class="d">四月十九</span>不举。西村没。</div>
+    <div class="row blank"></div>
+    <div class="row hot"><span class="d">四月廿七</span>看久了。来不及。</div>
+    <div class="row blank"></div>
+    <div class="row dim">—— 以下字迹不同 ——</div>
+    <div class="row"><span class="d">四月廿八</span>接。</div>
+    <div class="ledger-note">风格样本，非最终文案。最后两条是全篇的枢纽：“看久了。来不及。”六个字把整个机制说完了；“接。”一个字完成了传承。</div>
+  </div>
+
+  <h3><span class="n">02</span>墩上的物件</h3>
+  <p>熏黑的火盆、豁口的刀刃、一截烧剩的柴、墙上歪斜的刻痕。点一下出一句，不点不打扰。每件物对应一个已经不在了的前任。</p>
+
+  <h3><span class="n">03</span>结算短句</h3>
+  <p>天亮时不报分数，报一行事实。<span class="dim">“西村，十七户。” / “无人应答。” / “有旗自南来。”</span></p>
+
+  <h3><span class="n">04</span>题词</h3>
+  <p>开场最多一行，不复述世界观。</p>
+
+  <h3><span class="n">✕</span>四件不做的事</h3>
+  <ul class="plain">
+    <li>不做对话，游戏里没有人跟你说话</li>
+    <li>不做任务说明与教学关卡，第一遇就是教学</li>
+    <li>不做角色介绍、势力图谱、年表</li>
+    <li>不做分支叙事树，所有反馈由结算承担</li>
+  </ul>
+
+  <h3><span class="n">预算</span>全文不超过 800 字</h3>
+  <table>
+    <thead><tr><th>载体</th><th style="width:22%">条数</th><th style="width:22%">预算</th></tr></thead>
+    <tbody>
+      <tr><td>题词</td><td>1</td><td class="num">≤ 30 字</td></tr>
+      <tr><td>烽簿条目</td><td>30 到 40</td><td class="num">约 500 字</td></tr>
+      <tr><td>物件注</td><td>6 到 8</td><td class="num">约 100 字</td></tr>
+      <tr><td>结算短句</td><td>约 20</td><td class="num">约 100 字</td></tr>
+      <tr><td><b>合计</b></td><td>—</td><td class="num">≤ 800 字</td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="n">弧线</span>不加字也能有情绪</h3>
+  <p>四段，全部由结算反馈推进，不靠任何一段说明文字：</p>
+  <ul class="plain">
+    <li><b>懵懂</b>：不知道该报什么，见影子就报高级。有人来，你觉得这是对的。</li>
+    <li><b>谨慎</b>：误报被罚，开始不敢报。空报几次，也没出事。</li>
+    <li><b>代价</b>：因为不敢报，某一次真的失守。结算短句只有一行。</li>
+    <li><b>决断</b>：最后一次大潮。你能做的只是看着，然后决定信不信自己。</li>
+  </ul>
+</section>
+
+<!-- ========== 九 ========== -->
+<section>
+  <h2>Ⅸ 屏幕与体量</h2>
+  <p class="h2sub">一屏，2D，一个人做十五天。</p>
+
+  <div class="screen">
+    <div class="row"><span class="lab">上</span><span class="val">信用刻度（细线，不提示数值）</span></div>
+    <div class="row" style="min-height:180px;background:radial-gradient(circle at 62% 46%, #1d242c 0%, #0a0c0e 62%)">
+      <span class="lab" style="align-self:flex-start">中</span>
+      <span class="val" style="align-self:flex-end">雾、海、影子（唯一的信息区）</span>
+    </div>
+    <div class="row"><span class="lab">下</span><span class="val">按住区域（望）与松开后的四个选项（守）</span></div>
+  </div>
+
+  <p>整屏只有三个区域。中段是唯一的信息来源，玩家全部注意力都在那儿。这是“小而美”能成立的前提：一个动作、一处视野、一种情绪。</p>
+
+  <table>
+    <thead><tr><th style="width:34%">项</th><th>取舍</th></tr></thead>
+    <tbody>
+      <tr><td>引擎</td><td>Godot 4，2D，Compatibility 渲染器（若后续要投百度赛道，需实测导出包体）</td></tr>
+      <tr><td>美术</td><td>黑、雾白、三色信号。影子用剪影，不做细节。自绘或 ComfyUI 生成，全部留授权台账</td></tr>
+      <tr><td>音频</td><td>四种：风、火、钟、浪。低频环境铺底，钟声是唯一的强提示</td></tr>
+      <tr><td>不做</td><td>多人、存档、分支树、过场动画、多结局系统</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== 十 ========== -->
+<section>
+  <h2>Ⅹ 风险</h2>
+  <p class="h2sub">我担心的三件事。</p>
+
+  <div class="risk">
+    <span class="t">反馈必须狠。这是生死线。</span>
+    <span class="d">信息类游戏最常见的死法是玩家不知道自己错在哪。结算必须具体到“你报了三级，主力调去了东边，西边的村子没了”，而不是一个分数或一句评语。第一轮测试如果有人说“不知道要干嘛”，就推倒重做反馈层。</span>
+  </div>
+
+  <div class="risk">
+    <span class="t">“看不清但能判断”的分寸极难拿捏。</span>
+    <span class="d">太模糊就退化成随机，太清楚就没有张力。玩家必须能数出影子有几个，但认不出那是不是倭船的形制。这条线的任何一侧都会毁掉核心体验，需要留出专门的调参时间。</span>
+  </div>
+
+  <div class="risk">
+    <span class="t">信用模型的调参会吃掉比你预期更多的时间。</span>
+    <span class="d">报准回补多少、误报扣多少、不报怎么算，每一个数字都直接改变难度曲线。建议第一版用最粗暴的数值跑通完整一夜，再花两天只调参不动结构。</span>
+  </div>
+</section>
+
+<!-- ========== 十一 ========== -->
+<section>
+  <h2>Ⅺ 待定</h2>
+  <p class="h2sub">下一轮讨论要拍板的问题。</p>
+
+  <div class="qbox">
+    <ol>
+      <li><b>玩家身份</b>：墩上的守卒，还是卫所里的指挥？守卒视角近、有身体感、贴合“守望”二字，但看不到全局；指挥视角能做更多决策，但会变成一般的策略游戏。目前倾向守卒。</li>
+      <li><b>是否做接力</b>：玩家报出的信，能否在后续夜里看到它一路传下去的结果，甚至成为别人烽簿里的一条记录？这会极大增强“传承”的重量，但成本不低。</li>
+      <li><b>夜数</b>：5 夜还是 7 夜？直接决定一局长度与内容量。</li>
+      <li><b>要不要“雾天”作为独立关卡类型</b>：雾天砍掉级数、只剩钟，是一次规则突变。做成固定的一夜，还是随机插入？</li>
+      <li><b>结尾形态</b>：七月十五巡境那一句，出现在结算后，还是作为最后一次“望”的画面本身？</li>
+    </ol>
+  </div>
+
+  <p>下一步只做一件事：按第 Ⅴ 节把一整夜压成一页纸，从入夜写到结算，不写代码不画图。如果读下来你自己想玩第二局，这条线就成立。如果读着闷，现在换还来得及。</p>
+</section>
+
+<!-- ========== 考据 ========== -->
+<section>
+  <h2>附录 考据说明</h2>
+  <p class="h2sub">哪些可以直接用，哪些必须去核。</p>
+
+  <p><strong>可以直接用（已交叉验证）</strong></p>
+  <ul class="plain">
+    <li>“守望相助”出自《孟子·滕文公上》，语境为井田制下的邻里互助，原文可查。</li>
+    <li>永昌堡：明嘉靖三十七年（1558）始建，王沛、王德叔侄抗倭殉身后，王叔果、王叔杲兄弟捐资，族人集资约七千余两，历时 11 个月建成；浙江现存唯一的民间自建抗倭城堡，2001 年列为全国重点文物保护单位。</li>
+    <li>汤和信俗：农历七月十五“抬佛”巡境，俗称汤和庙会、永强抬佛，2008 年入选第二批国家级非物质文化遗产名录（编号 Ⅹ-85）。</li>
+  </ul>
+
+  <p><strong>需要回原始文献核实</strong></p>
+  <ul class="plain">
+    <li>分级举烽的具体档位（1/2/3/5 烟火的对应人数）。目前数字来自科普转述，不同朝代、不同防区存在差异，务必核对《练兵实纪》《筹海图编》或相关学术论文。</li>
+    <li>沿海墩台的驻兵人数与视野距离，同样存在地域差异，崇武海堠的具体形制需单独核。</li>
+    <li>“15 分钟接力”为概括性说法，实际取决于地形与间距。</li>
+  </ul>
+
+  <p class="small">文化传承创新奖由文化评委协助复核准确性，这一项的风险不在“做得不够多”，而在“写错了”。游戏里出现的任何具体数字、地名、官职，都建议在制作阶段列一张核对表。</p>
+</section>
+
+<footer>
+  守望 · 设计文档 v0.1 · 2026-11-21<br>
+  OSGJ 2026 参赛概念稿 · 本体目标：最佳玩法 / 最佳创意 + 文化传承创新奖<br>
+  本文档为讨论稿，标注为“待定”的部分尚未拍板。
+</footer>
+
+</div>
+</body>
+</html>
