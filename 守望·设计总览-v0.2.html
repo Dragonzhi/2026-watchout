@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>守望 · 设计总览 v0.2</title>
+<style>
+  :root{
+    --ink:#0d0f12;
+    --panel:#15181d;
+    --panel2:#1a1e24;
+    --line:#262b33;
+    --text:#d5d9de;
+    --dim:#7d858f;
+    --smoke:#8a8f98;
+    --fire:#e08a3c;
+    --bell:#6f9aa8;
+    --serif:"Songti SC","Songti","Noto Serif CJK SC","Source Han Serif SC",serif;
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:16px;
+    line-height:1.85;
+    letter-spacing:.01em;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:72px 32px 120px}
+  @media(max-width:640px){.wrap{padding:48px 20px 80px}}
+
+  /* 封面 */
+  header.cover{padding:24px 0 56px;border-bottom:1px solid var(--line);margin-bottom:56px}
+  .kicker{font-size:12px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin-bottom:28px}
+  h1{font-family:var(--serif);font-size:clamp(52px,11vw,88px);line-height:1;margin:0 0 20px;font-weight:500;letter-spacing:.12em}
+  h1 .dot{color:var(--fire)}
+  .sub{font-family:var(--serif);font-size:17px;color:var(--smoke);letter-spacing:.06em;margin:0 0 32px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12.5px;color:var(--dim);letter-spacing:.05em}
+  .meta b{color:var(--smoke);font-weight:500}
+
+  /* 章节 */
+  section{margin:0 0 72px}
+  h2{
+    font-family:var(--serif);font-size:13px;font-weight:500;letter-spacing:.3em;
+    color:var(--bell);margin:0 0 8px;text-transform:uppercase;
+  }
+  h2 + .h2sub{font-family:var(--serif);font-size:27px;line-height:1.4;margin:0 0 26px;font-weight:500;letter-spacing:.04em}
+  h3{font-family:var(--serif);font-size:18px;font-weight:500;margin:38px 0 12px;letter-spacing:.05em;color:#e8ebef}
+  h3 .n{color:var(--dim);font-size:13px;margin-right:10px;letter-spacing:.1em}
+  p{margin:0 0 18px}
+  p.lead{font-family:var(--serif);font-size:19px;line-height:1.9;color:#e2e6ea}
+  strong{color:#f0f2f5;font-weight:600}
+  em{font-style:normal;color:var(--fire)}
+  .dim{color:var(--dim)}
+  .small{font-size:13.5px;line-height:1.75;color:var(--dim)}
+  a{color:var(--bell)}
+
+  /* 引文 */
+  blockquote{
+    margin:26px 0;padding:20px 26px;border-left:2px solid var(--bell);
+    background:var(--panel);font-family:var(--serif);font-size:17px;line-height:1.95;
+    color:#c9cfd6;
+  }
+  blockquote cite{display:block;margin-top:12px;font-size:12.5px;font-style:normal;color:var(--dim);letter-spacing:.08em;font-family:var(--sans)}
+
+  /* 命题条 */
+  .thesis{
+    margin:34px 0;padding:30px 32px;background:var(--panel);
+    border:1px solid var(--line);border-radius:2px;
+  }
+  .thesis .lbl{font-size:11.5px;letter-spacing:.3em;color:var(--fire);margin-bottom:14px}
+  .thesis .txt{font-family:var(--serif);font-size:23px;line-height:1.65;letter-spacing:.05em;color:#f2f4f6}
+  @media(max-width:640px){.thesis .txt{font-size:19px}}
+
+  /* 卡片 */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:26px 28px;margin:26px 0}
+  .card > :last-child{margin-bottom:0}
+
+  /* 图 */
+  figure{margin:34px 0}
+  figure svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{font-size:12.5px;color:var(--dim);margin-top:14px;letter-spacing:.06em;line-height:1.7}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;margin:24px 0;font-size:14.5px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.14em;color:var(--dim);font-weight:500;text-transform:uppercase}
+  td b{color:#f0f2f5;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;color:var(--fire);font-weight:600}
+
+  /* 三色 */
+  .swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:26px 0}
+  @media(max-width:640px){.swatches{grid-template-columns:1fr}}
+  .sw{border:1px solid var(--line);border-radius:2px;overflow:hidden;background:var(--panel)}
+  .sw .bar{height:52px}
+  .sw .body{padding:14px 16px}
+  .sw .name{font-family:var(--serif);font-size:16px;letter-spacing:.1em;margin-bottom:4px}
+  .sw .desc{font-size:12.5px;color:var(--dim);line-height:1.6}
+
+  /* 流程 */
+  .steps{counter-reset:s;margin:26px 0;padding:0;list-style:none}
+  .steps li{
+    counter-increment:s;position:relative;padding:0 0 22px 44px;
+    border-left:1px solid var(--line);margin-left:9px;
+  }
+  .steps li:last-child{border-left-color:transparent;padding-bottom:0}
+  .steps li::before{
+    content:counter(s);position:absolute;left:-10px;top:-2px;width:20px;height:20px;
+    border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+    font-size:11px;color:var(--dim);text-align:center;line-height:19px;
+  }
+  .steps .t{font-weight:600;color:#f0f2f5;display:block;margin-bottom:4px}
+  .steps .d{font-size:14.5px;color:#b9c0c8;line-height:1.75}
+
+  /* 烽簿 */
+  .ledger{
+    background:#0b0d10;border:1px solid var(--line);border-radius:2px;padding:28px 30px;margin:26px 0;
+    font-family:var(--serif);
+  }
+  .ledger .row{font-size:15.5px;line-height:2.25;color:#a9b1ba;letter-spacing:.04em}
+  .ledger .row .d{color:var(--dim);margin-right:16px;font-size:13px}
+  .ledger .row.hot{color:#e6eaee}
+  .ledger .row.hot .d{color:var(--fire)}
+  .ledger .blank{height:10px}
+  .ledger-note{font-size:12px;color:var(--dim);margin-top:16px;font-family:var(--sans);letter-spacing:.05em;line-height:1.7}
+
+  /* 屏幕骨架 */
+  .screen{border:1px solid var(--line);border-radius:2px;background:#0a0c0e;margin:26px 0;padding:0;overflow:hidden}
+  .screen .row{display:flex;min-height:70px;border-bottom:1px solid #1c2027;align-items:center;justify-content:space-between;padding:14px 18px}
+  .screen .row:last-child{border-bottom:none}
+  .screen .lab{font-size:12.5px;color:var(--dim);letter-spacing:.1em}
+  .screen .val{font-size:13px;color:var(--smoke)}
+
+  /* 风险 */
+  .risk{border-left:2px solid #8a4b3c;padding-left:20px;margin:22px 0}
+  .risk .t{font-weight:600;color:#e5c0b4;display:block;margin-bottom:5px;font-size:15.5px}
+  .risk .d{font-size:14.5px;color:#b9c0c8;line-height:1.8}
+
+  ul.plain{margin:20px 0;padding-left:0;list-style:none}
+  ul.plain li{position:relative;padding-left:20px;margin-bottom:12px;font-size:15px;line-height:1.8}
+  ul.plain li::before{content:"·";position:absolute;left:4px;color:var(--bell);font-weight:700}
+
+  .qbox{background:var(--panel2);border:1px dashed var(--line);border-radius:2px;padding:24px 26px;margin:26px 0}
+  .qbox ol{margin:0;padding-left:22px}
+  .qbox li{margin-bottom:12px;font-size:15px;line-height:1.8;color:#b9c0c8}
+  .qbox li:last-child{margin-bottom:0}
+  .qbox li b{color:#f0f2f5}
+
+  footer{border-top:1px solid var(--line);padding-top:28px;margin-top:80px;font-size:12.5px;color:var(--dim);letter-spacing:.05em;line-height:1.9}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <div class="kicker">OSGJ 2026 · 设计总览</div>
+  <h1>守望<span class="dot">。</span></h1>
+  <p class="sub">一个人、一座墩、一条会撒谎的烽火。</p>
+  <div class="meta">
+    <span><b>版本</b> v0.2 现行总览</span>
+    <span><b>更新</b> 2026-11-22</span>
+    <span><b>性质</b> 转录自 00–04 号文档，拍板以 00 §6.1 与 03 为准</span>
+    <span><b>阶段</b> 机制拍板基本完成 · 文案与考据二次核对期</span>
+    <span><b>截止</b> 2026-12-06 23:59（北京时间）</span>
+    <span><b>目标</b> 最佳玩法或最佳创意 + 文化传承创新</span>
+  </div>
+</header>
+
+<!-- ========== 一 ========== -->
+<section>
+  <h2>Ⅰ 命题</h2>
+  <p class="h2sub">“守望”被所有人做成了守城，但它本来讲的是互看。</p>
+
+  <p class="lead">守是空间的，抵御、把持，需要威胁在场。望是时间的，眺望、守候，需要距离和等待。往下挖一层，会挖到词源：这个词不是从战争里长出来的，是从井田制里长出来的。</p>
+
+  <blockquote>
+    死徙无出乡，乡田同井，出入相友，守望相助，疾病相扶持，则百姓亲睦。
+    <cite>《孟子·滕文公上》</cite>
+  </blockquote>
+
+  <p>这句话描述的是一个邻里网络：<strong>谁看见谁家进了贼，就喊一声。</strong>守望相助指的是我替你看着你的盲区，你替我看着我背后的那一侧。所以守望的结构里有三方，不是两方：我、远方的东西、还有替我看着另一侧的人。</p>
+
+  <figure>
+    <svg viewBox="0 0 780 330" role="img" aria-label="守望的三方结构">
+      <defs>
+        <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#6f9aa8"/>
+        </marker>
+        <marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#48505a"/>
+        </marker>
+      </defs>
+
+      <!-- 远方 -->
+      <rect x="290" y="28" width="200" height="64" rx="2" fill="#1a1e24" stroke="#262b33"/>
+      <text x="390" y="56" text-anchor="middle" fill="#8a8f98" font-size="14" font-family="serif">远方</text>
+      <text x="390" y="76" text-anchor="middle" fill="#5d646d" font-size="11">看不全，看不清</text>
+
+      <!-- 望：我 -> 远方 -->
+      <path d="M256 216 L 352 96" fill="none" stroke="#6f9aa8" stroke-width="1.4" marker-end="url(#ar)"/>
+      <text x="266" y="152" fill="#9dc3cd" font-size="14" font-family="serif">望</text>
+
+      <!-- 望：邻 -> 远方 -->
+      <path d="M524 216 L 428 96" fill="none" stroke="#6f9aa8" stroke-width="1.4" marker-end="url(#ar)"/>
+      <text x="512" y="152" fill="#9dc3cd" font-size="14" font-family="serif">望</text>
+
+      <!-- 我 -->
+      <rect x="86" y="216" width="170" height="64" rx="2" fill="#1a1e24" stroke="#e08a3c" stroke-opacity=".55"/>
+      <text x="171" y="244" text-anchor="middle" fill="#e8ebef" font-size="14" font-family="serif">我</text>
+      <text x="171" y="264" text-anchor="middle" fill="#8a8f98" font-size="11">望得见，守不全</text>
+
+      <!-- 邻 -->
+      <rect x="524" y="216" width="170" height="64" rx="2" fill="#1a1e24" stroke="#262b33"/>
+      <text x="609" y="244" text-anchor="middle" fill="#8a8f98" font-size="14" font-family="serif">邻</text>
+      <text x="609" y="264" text-anchor="middle" fill="#5d646d" font-size="11">替我守背后</text>
+
+      <!-- 互守：双向虚线 -->
+      <path d="M266 240 L 514 240" fill="none" stroke="#8a8f98" stroke-width="1.3" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+      <path d="M514 258 L 266 258" fill="none" stroke="#8a8f98" stroke-width="1.3" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+      <text x="390" y="302" text-anchor="middle" fill="#8a8f98" font-size="12.5" font-family="serif">互相替对方看着背后的空档</text>
+    </svg>
+    <figcaption>三方结构。“望”是共有的，虚线是互相的。可是这条互相的链能不能站住，谁也无法事先验证。</figcaption>
+  </figure>
+
+  <p>于是守望的本质浮出来了：<strong>我的安全建立在另一个人是否可靠上，而这件事我无法验证。</strong></p>
+
+  <div class="thesis">
+    <div class="lbl">设计命题</div>
+    <div class="txt">守望的最终形态是信用，不是城墙。</div>
+  </div>
+
+  <p>这句话在明代有一份落在纸上的实证：王叔果《请筑堡疏》请求把盐课司和巡检司迁进堡里，理由正是——</p>
+
+  <blockquote>
+    如移入堡内，则彼此凭依，守望相助，庶几缓急得力。
+    <cite>《请筑堡疏》，〔《王叔果集》P216〕——题词首选，「守望相助」的原话用例</cite>
+  </blockquote>
+</section>
+
+<!-- ========== 二 ========== -->
+<section>
+  <h2>Ⅱ 现状快照</h2>
+  <p class="h2sub">2026-11-22。机制拍板基本完成，进入文案与考据二次核对期。</p>
+
+  <table>
+    <thead><tr><th style="width:22%">项</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>demo</b></td>
+        <td><code>demo/index.html</code> 单文件手感验证版，浏览器全流程验证、控制台零报错。已落：火盆投柴报信、邻墩复举回执、白天教学遇、报高吃罚、信用后果方案 A、再来一夜真推进。</td>
+      </tr>
+      <tr>
+        <td><b>已拍板</b></td>
+        <td>火盆投柴／邻墩回执／方向不可传／单线 2D／昼烟夜火／文案三原则／信用后果方案 A（本文 §Ⅳ–Ⅵ）。细节与理由在 <code>03</code> §1，一行速查在 <code>00</code> §6.1。</td>
+      </tr>
+      <tr>
+        <td><b>接下来</b></td>
+        <td>① 文案交接清单六项（<code>03</code> §0）② 考据二次核对（<code>04</code> D1–D8，进正式文案前必须）③ 之后才是 Godot 移植。</td>
+      </tr>
+      <tr>
+        <td><b>分工</b></td>
+        <td>玩法／文案／文化的决策与文案归<strong>主模型（大参数）</strong>；执行侧模型只按拍板结果实现，不拍板。方案讨论定之前不动 demo。</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== 三 ========== -->
+<section>
+  <h2>Ⅲ 史实骨架</h2>
+  <p class="h2sub">这套机制的骨架，在真实历史里运转过——但只引用核过的部分。</p>
+
+  <p>抗倭的海防线不是一条墙，是一张<span style="color:var(--bell)">信息网</span>。明代沿海设卫所，配巡检司、烽堠、墩台、水寨。墩台之间靠烟火接力，一棒接一棒地把敌情往内陆送；这条链的每一环能力都非常有限。</p>
+
+  <p><strong>v0.1 概念稿里的四个数字（1/2/3/5 烟火档位、15 分钟接力、驻兵 8–10 人、视野 30 里）经初核均属「未核实」</strong>，已按铁律撤出设计依据（<code>01</code> §8）。换上来的是已初核的制度骨架（<code>01</code> §9）：</p>
+
+  <table>
+    <thead><tr><th style="width:24%">机制</th><th style="width:40%">考据状态（2026-11-22 初核）</th><th>游戏怎么用</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>分级举烽</b><br><span class="small">信息被压扁</span></td>
+        <td>「体例」有硬证据：唐律把「多烽／少烽」写进刑法；汉《塞上烽火品约》出土文书按地点＋昼夜＋敌情分档。<b>明海防的具体档位数字未核</b>。</td>
+        <td>自定三档（一级小股／二级成队／三级大举），安全；信号只能传数量级，传不了方向、装备、意图。</td>
+      </tr>
+      <tr>
+        <td><b>昼烟夜火</b></td>
+        <td>《汉书音义》「昼则燔燧，夜乃举烽」，颜师古订正前人误注——原则自汉已定。</td>
+        <td>白天敌情照样来：第一遇 e0 为午后教学遇；白天难在「认」，夜里难在「看」。</td>
+      </tr>
+      <tr>
+        <td><b>复举</b><br><span class="small">确认动作</span></td>
+        <td>烽燧接力里「收到要复举」是规矩。</td>
+        <td>邻墩回执：你烧几柱烟，它复举几回——链子活着的证据。</td>
+      </tr>
+      <tr>
+        <td><b>值守灯火</b><br><span class="small">兜零常悬</span></td>
+        <td>同注：「高台上作桔槔头，置兜零……常悬之，有寇则火燃举之。」汉制原型。<b>夜悬灯条文未核</b>。</td>
+        <td>邻墩那点常亮灯火＝有人在看夜；属设计拟真，不进正式文案。</td>
+      </tr>
+      <tr>
+        <td><b>罚则不对称</b></td>
+        <td>唐律：失报／少报徒三年，妄举／多举徒一年（见 §Ⅵ 引文）。</td>
+        <td>报高的罚轻于不报的罚——数值方向有律文佐证，不用返工。</td>
+      </tr>
+      <tr>
+        <td><b>雾天敲钟</b></td>
+        <td>钟／锣／鼓近岸传令，只能传「有情况」；<b>是否分级未核</b>。</td>
+        <td>待做（<code>04</code> P3）：规则一句话能讲清才进；不造数字。</td>
+      </tr>
+      <tr>
+        <td><b>驻兵·档位·时长</b></td>
+        <td>均未核（墩台驻兵数、几人对应几烟、接力时长）。</td>
+        <td><b>不进游戏</b>（铁律；<code>01</code> §8）。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <blockquote>
+    ●匈奴人昼入殄北塞，举二蓬，燔一积薪；夜入，燔一积薪，举堠上离合苣火，毋绝至明。
+    <cite>《塞上烽火品约》，居延破城子 1974 年出土——分级举烽有出土文书实物；「离合苣火」说明信号还有形态维度（点子池 P6）</cite>
+  </blockquote>
+
+  <p class="small">术语避坑：游戏内只用「烟／火」，不用「烽／燧」二字分工（历代漂移）；不写「狼烟＝狼粪」（未核）；烽火戏诸侯在清华简《系年》后多被视为演绎，只作文学原型。</p>
+</section>
+
+<!-- ========== 四 ========== -->
+<section>
+  <h2>Ⅳ 三色系统</h2>
+  <p class="h2sub">烟、火、钟。既是一套信号，也是一套视觉语言。</p>
+
+  <p>史实里的三种信号载体，恰好可以承担整个游戏的色彩编码。这条设计既解决了机制的信息通道问题，又顺手把美术压到极简。</p>
+
+  <div class="swatches">
+    <div class="sw">
+      <div class="bar" style="background:linear-gradient(180deg,#9aa0a8,#6d737b)"></div>
+      <div class="body">
+        <div class="name">烟</div>
+        <div class="desc">昼间通道。灰白，可见范围远，受风影响。<br>可承载级数。</div>
+      </div>
+    </div>
+    <div class="sw">
+      <div class="bar" style="background:linear-gradient(180deg,#f0a04e,#c46a20)"></div>
+      <div class="body">
+        <div class="name">火</div>
+        <div class="desc">夜间通道。暖橙，可穿透夜色，也暴露自身位置。<br>可承载级数。邻墩的复举与值守灯火同属火橙编码。</div>
+      </div>
+    </div>
+    <div class="sw">
+      <div class="bar" style="background:linear-gradient(180deg,#89b3c0,#4f7784)"></div>
+      <div class="body">
+        <div class="name">钟</div>
+        <div class="desc">雾天通道。冷青，只能表达“有”，无法表达“多少”。<br>精度归零。</div>
+      </div>
+    </div>
+  </div>
+
+  <p>整场游戏只需要黑、雾白、以及这三色。这是主动选定的风格，也正好落在预算之内：你在雾里，看不清是真的看不清。</p>
+
+  <p class="small">一笔留给结尾：拼字龙灯的五色（红黄蓝绿黑，拼「天下太平」）是仪式色。功能色与仪式色在同一个画面里对上——点子池 §2.5， Godot 美术期做。</p>
+</section>
+
+<!-- ========== 五 ========== -->
+<section>
+  <h2>Ⅴ 核心机制</h2>
+  <p class="h2sub">按住海面是看，按住火盆是说。</p>
+
+  <p>核心输入只有一种手势：<strong>按住与松手，对象决定动词</strong>。对着海面按住是「望」，对着火盆按住是「报」。全游戏不再有按钮菜单。</p>
+
+  <h3><span class="n">01</span>报信 = 火盆投柴（2026-11-22 拍板）</h3>
+  <p>松手后按住火盆投柴，<em>几束 = 几级</em>。烟起即已发出，不可撤回；不碰火盆 = 不报。为什么是投柴而不是菜单：</p>
+  <ul class="plain">
+    <li>史实上报信是<strong>操作实物</strong>——白天烧几束苇把就是几柱烟，级数＝柴束数，不是选项。</li>
+    <li>手势对称：<strong>按住海面是看，按住火盆是说。</strong>一种手势，对象决定动词。</li>
+    <li>不可撤回是烽火的本义：柴烧了就是烧了，第一柱烟升起信号就在路上。</li>
+    <li>「不报」从一个按钮变成<strong>一个不做</strong>；决断曲线延伸进发送——投第二束的那一两秒船还在逼近。</li>
+  </ul>
+
+  <table>
+    <thead><tr><th style="width:34%">参数</th><th style="width:26%">值</th><th>为什么</th></tr></thead>
+    <tbody>
+      <tr><td>第 1 束</td><td class="num">按住 0.42s</td><td>跟手，第一下就有响应</td></tr>
+      <tr><td>第 2 束</td><td class="num">按住 1.2s</td><td>有重量，升级要想</td></tr>
+      <tr><td>第 3 束</td><td class="num">按住 2.0s</td><td>同上</td></tr>
+      <tr><td>送出确认</td><td class="num">松手后 1.35s</td><td>烟再走一拍；这一拍里还能添柴，船也在逼近</td></tr>
+      <tr><td>键盘</td><td class="num">1 / 2 / 3</td><td>每按一下投一束（桌面测试用）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="n">02</span>望 = 三格与雾</h3>
+  <p>海面分左中右三格，一次只能照亮一格；中格是你的责任区，<strong>右格交给邻墩</strong>。按住海面，雾每 1.3 秒退一次（白天 1.0 秒），每次只多看清一个维度，顺序不固定。松手之前无路可退，而船一直在逼近。</p>
+
+  <figure>
+    <svg viewBox="0 0 780 345" role="img" aria-label="确定度与危险的交叉">
+      <line x1="60" y1="270" x2="730" y2="270" stroke="#262b33"/>
+      <line x1="60" y1="270" x2="60" y2="30" stroke="#262b33"/>
+      <text x="395" y="332" text-anchor="middle" fill="#5d646d" font-size="12" font-family="serif">从影子出现起经过的时间</text>
+      <text x="26" y="150" fill="#5d646d" font-size="12" font-family="serif" transform="rotate(-90 26 150)">程度</text>
+
+      <!-- 确定度曲线 -->
+      <path d="M60 268 C 180 250, 320 200, 430 148 C 520 108, 600 88, 700 82"
+            fill="none" stroke="#6f9aa8" stroke-width="2"/>
+      <text x="706" y="76" fill="#6f9aa8" font-size="12.5" font-family="serif">看得清</text>
+
+      <!-- 危险度曲线 -->
+      <path d="M60 266 C 200 262, 330 250, 430 220 C 520 190, 570 120, 640 46"
+            fill="none" stroke="#e08a3c" stroke-width="2"/>
+      <text x="648" y="42" fill="#e08a3c" font-size="12.5" font-family="serif">来不及</text>
+
+      <!-- 交叉点 -->
+      <circle cx="447" cy="212" r="4" fill="#f0f2f5"/>
+      <line x1="447" y1="212" x2="447" y2="270" stroke="#3d444d" stroke-dasharray="4 4"/>
+      <text x="447" y="290" text-anchor="middle" fill="#8a8f98" font-size="12" font-family="serif">决断点</text>
+
+      <!-- 窗口 -->
+      <rect x="447" y="120" width="90" height="106" fill="#e08a3c" fill-opacity=".07"/>
+      <text x="492" y="112" text-anchor="middle" fill="#8a8f98" font-size="11.5" font-family="serif">可玩空间</text>
+    </svg>
+    <figcaption>两条曲线之间的缝，就是游戏。早报 = 误报，晚报 = 来不及。投柴参数把这条缝长在了手指上。</figcaption>
+  </figure>
+
+  <h3><span class="n">03</span>方向不可传（拍板）</h3>
+  <p>你知道有敌人，<strong>不知道是哪个滩头</strong>。方位由「哪座墩举火」承载（史实如此）——你看得见你的格，格内方位是邻墩替你看的那部分。旗杆等第二通道已搁置（见 §Ⅻ）。</p>
+
+  <h3><span class="n">04</span>派生路径（均已实测可玩）</h3>
+  <ul class="plain">
+    <li>没投柴前按住海面＝<b>回头再看</b>：更确定，也更近。</li>
+    <li>遭遇中直接按火盆＝<b>盲报</b>：节拍表岔口 C「都不看，照经验报」从纸面变成可玩。</li>
+  </ul>
+
+  <h3><span class="n">05</span>昼与夜（拍板）</h3>
+  <p>昼烟夜火双通道，白天敌情照样来。demo 第一遇 e0 为午后白天：船裸眼看得见轮廓（夜里才是一团）、雾开更快、时限更宽，作教学遇。昼夜用双色板缓动切换——<em>入夜本身就是「信息重新变得不完全」的过程</em>。分工：白天难在<strong>认</strong>（船多、要分辨），夜里难在<strong>看</strong>（发现难）。</p>
+</section>
+
+<!-- ========== 六 ========== -->
+<section>
+  <h2>Ⅵ 信用</h2>
+  <p class="h2sub">报出去的每一条，都在花别人对你的信任。</p>
+
+  <table>
+    <thead><tr><th style="width:38%">事件</th><th style="width:18%">变化</th><th>后果</th></tr></thead>
+    <tbody>
+      <tr><td>报准（级数相符）</td><td class="num">+2</td><td>下游及时到位</td></tr>
+      <tr><td>报低（实情更严重）</td><td class="num">+1</td><td>人到了，但不够</td></tr>
+      <tr><td>报高（实情更轻）</td><td class="num">−3</td><td>兵力被浪费；吃罚（见下）</td></tr>
+      <tr><td>不报，且确有威胁</td><td class="num">失守</td><td>威胁在你负责的格＝直接终局</td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="n">01</span>报高吃罚（拍板）</h3>
+  <p>报高不只扣信用，结算带出一行罚：dC −2「墩簿上，记了你的名。」、dC −3「你挨了一顿军棍。」。只用通称，不写具体刑名条数（明军法条文需核，<code>03</code> §4）。罚的轻重不对称有律文级佐证：</p>
+
+  <blockquote>
+    诸烽候不警，令寇贼犯边；及应举烽燧而不举，应放多烽而放少烽者，各徒三年。<br>
+    若放烽已讫，而前烽不举，不即赴告者，亦如之。（注：即不应举烽燧而举，若应放少烽而放多烽，及绕烽二里内辄放烟火者，各徒一年。）
+    <cite>《唐律疏议》卷十六·擅兴——失报徒三年 vs 妄报徒一年：下游「宁可空跑，不可不来」有律文依据</cite>
+  </blockquote>
+
+  <h3><span class="n">02</span>信用见底 ≠ 狼来了（拍板：方案 A）</h3>
+  <p>军法压着下游「宁可空跑，不可不来」，所以迟疑的从来不是<strong>来不来</strong>，是<strong>规格</strong>。信用低（≤2）且报准／报低时，下游多一道核实工序：结算追加一行——</p>
+
+  <div class="thesis">
+    <div class="lbl">demo 结算行（已落）</div>
+    <div class="txt">先来了两个哨探，兵还在后头。</div>
+  </div>
+
+  <p>这不是怀疑人格，是<strong>把核实的工序转嫁给了下游</strong>，而核实要花时间——正好对上全篇主题「确定性的价格是时间」。备选行 A2「旗到了，慢了半拍。」留作手感校准。信用彻底破产对应「烽火戏诸侯」式的系统崩溃，属多夜尺度的终局状态，不是单夜参数。</p>
+
+  <h3><span class="n">03</span>回执 = 信任的表达（已进 demo）</h3>
+  <p>信任不显示数值，用<strong>回应行为</strong>表达：你烧几柱烟，邻墩在结算后复举几回（2.6 秒起，每回隔 0.75 秒）——墩台上火光一闪、一声远处点火的闷响、值守灯闪一下，三重编码。信用 ≤1 时不再回应。回得快＝链子活着；不回＝信用见底。</p>
+</section>
+
+<!-- ========== 七 ========== -->
+<section>
+  <h2>Ⅶ 一夜流程</h2>
+  <p class="h2sub">一夜 = 一局，3–5 分钟。铁律：一局的长度优先于内容的多少。</p>
+
+  <ol class="steps">
+    <li>
+      <span class="t">入夜</span>
+      <span class="d">黑。浪。风。海在雾里，右格远处邻墩的值守灯火在摇曳——亮＝有人在看夜。等待期可做的事（点火盆、翻烽簿）属点子池 §2.7，未实现。</span>
+    </li>
+    <li>
+      <span class="t">第一遇（白天，教学）</span>
+      <span class="d">第一晚的第一遇是午后：船裸眼看得见轮廓，雾开更快、时限更宽。夜里船才变回一团认不出的黑。</span>
+    </li>
+    <li>
+      <span class="t">望</span>
+      <span class="d">按住海面，雾退开一点，影子清晰一点——每次只多一个维度，顺序不固定。距离一直在缩短。</span>
+    </li>
+    <li>
+      <span class="t">投柴</span>
+      <span class="d">按住火盆，几束＝几级。烟起即已发出，不可撤回；没投柴前可以回头再看；不碰火盆＝不报。遭遇中直接投＝盲报。</span>
+    </li>
+    <li>
+      <span class="t">等</span>
+      <span class="d">报信之后的一段时间，什么都不会发生。这是整个游戏最难受的部分，也是必须保留的部分：填满了，游戏就变成「等读条」。</span>
+    </li>
+    <li>
+      <span class="t">回执</span>
+      <span class="d">邻墩复举几回：火光一闪＋一声闷响＋灯闪一下。这一拍之前，你不知道你的信有没有被接住。</span>
+    </li>
+    <li>
+      <span class="t">天亮</span>
+      <span class="d">先事实后账：「这一夜，烧了五束柴。」／「这一夜，火盆是冷的。」不报分数，不写评语。「再来一夜」真的推进：日期＋1、遇次重排、时限 ±8% 抖动；白天教学遇只在第一晚。</span>
+    </li>
+  </ol>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="n">终局</span>两种结束</h3>
+    <ul class="plain">
+      <li><b>失守</b>：不报而确有威胁（威胁在你负责的格），直接终局。威胁在邻墩的格是账，不是死。</li>
+      <li><b>结束</b>：熬到汛期过去。结算不写「你赢了」，只写「这一年过去了」。</li>
+      <li><b>信用破产</b>：多夜尺度的终局状态（「孤岛」），单夜参数压不出，留 Godot 版。</li>
+    </ul>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:34%">项</th><th>取舍</th></tr></thead>
+    <tbody>
+      <tr><td>体量</td><td>一夜 3–5 分钟、一屏一个动作；全篇 ≤ 25 分钟；共 5–7 夜（夜数待定）</td></tr>
+      <tr><td>视觉</td><td>单线 2D，黑＋雾白＋三色。剪影＋雾是机制的盟友；3D 感在 2D 内做（Light2D 火光、噪声雾、胶片颗粒、镜头呼吸、音景分层）——Godot 版清单</td></tr>
+      <tr><td>音频</td><td>风、浪、火、钟四层铺底；远处点火闷响是回执的听觉编码</td></tr>
+      <tr><td>引擎</td><td>Godot 4，2D，Compatibility 渲染器；现行 H5 单文件 demo 即百度赛道的候选本体（两线共享设计，不共享引擎）</td></tr>
+      <tr><td>不做</td><td>战斗、多人、存档、分支树、过场动画、多结局系统</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== 八 ========== -->
+<section>
+  <h2>Ⅷ 文化嵌入</h2>
+  <p class="h2sub">不用讲一个抗倭故事，让机制自己说。</p>
+
+  <p>文化传承创新奖的评法明文写着：单纯堆砌图片或文字不构成突出表现。所以要做的是<strong>把史实里最反直觉的那部分抽出来做成规则</strong>，历史的质感由规则本身承担：</p>
+
+  <table>
+    <thead><tr><th style="width:32%">文化元素</th><th>在游戏里变成了什么</th></tr></thead>
+    <tbody>
+      <tr><td>分级举烽</td><td>玩家唯一能输出的信息，只有三个离散档位。信息在源头就被压掉了细节。</td></tr>
+      <tr><td>昼烟夜火</td><td>白天也有敌情（汉书注），第一遇是白天的教学遇。</td></tr>
+      <tr><td>复举</td><td>邻墩回执＝「收到」的动作，链子活着的证据。</td></tr>
+      <tr><td>值守灯火（兜零常悬）</td><td>亮＝有人在看夜。信任的视觉载体。</td></tr>
+      <tr><td>雾天敲钟</td><td>天气改变可用通道，精度被迫归零（待做）。</td></tr>
+      <tr><td>守望相助（原义）</td><td>决定胜负的东西在你和下游的信任里，不在你那一段防线上。题词首选《请筑堡疏》原句。</td></tr>
+    </tbody>
+  </table>
+
+  <blockquote>
+    整饬船只器械，操习水战武艺，修葺墩堠，整理粮储。
+    <cite>嘉靖四十三年敕谕王叔果原文〔《王氏家录》卷二 P40〕——素材里出处最硬的「墩堠」字眼</cite>
+  </blockquote>
+
+  <blockquote>
+    甲寅、乙卯（1554—1555），大乱吴浙间，吾乡每春夏报警无虚日。
+    <cite>王叔杲《筑永昌堡始末》〔页 461〕——报警有季节节律，「一夜一局、汛期全篇」的结构依据</cite>
+  </blockquote>
+
+  <div class="thesis">
+    <div class="lbl">文化落点</div>
+    <div class="txt">四百年后，有人在七月十五抬着神像走过你守过的墩。他们走的那条路，就是你当年报警的方向。</div>
+  </div>
+
+  <p class="small">汤和信俗（农历七月十五「抬佛」巡境，2008 年入选第二批国家级非物质文化遗产，编号 Ⅹ-85 待回官网核）是这个游戏最自然的收束：巡境本质上是每年一次当着所有人的面确认「我还在，我还在看」，那是一场仪式化的信用维护。它与游戏的核心机制是同一件事，只是时间尺度不同。</p>
+</section>
+
+<!-- ========== 九 ========== -->
+<section>
+  <h2>Ⅸ 碎片化叙事</h2>
+  <p class="h2sub">不写世界观，只留物证。</p>
+
+  <h3><span class="n">01</span>文案三原则（拍板）</h3>
+  <ul class="plain">
+    <li><b>删评价词。</b>「准」「运气好」「被记了一笔」全不要。事实自己说话：卫所至贼退就是准，倭登岸就是不准。</li>
+    <li><b>结算只记事实。</b>先事实后账；天亮不报分数。demo 已换：「这一夜，烧了五束柴。/ 这一夜，火盆是冷的。」</li>
+    <li><b>烽簿＝守卒涂记，下游记录＝公文体。</b>守卒半识字，句子短、会断在半句，但不给自己打分；下游簿里你被第三人称记录——「廿三夜，宁村所外墩举火二级。至，贼退。」一行别人的字，认出是你。</li>
+  </ul>
+
+  <p class="small">真实存世的同类文书（汉《塞上烽火品约》、唐代烽燧文书、明代塘报）共同点：无心情、无评价、无修辞。评价留给读的人。</p>
+
+  <h3><span class="n">02</span>烽簿</h3>
+  <p>墩上有一本册子，历代守卒记的日常。它天然就是电报体：只记要点，不写心情。</p>
+
+  <div class="ledger">
+    <div class="row"><span class="d">四月初一</span>雾。举钟。无人来。</div>
+    <div class="row"><span class="d">四月初四</span>夜。二火。卫所至，倭未至。</div>
+    <div class="row"><span class="d">四月十二</span>风大。看不久。</div>
+    <div class="row"><span class="d">四月十九</span>不举。西村没。</div>
+    <div class="row blank"></div>
+    <div class="row hot"><span class="d">四月廿七</span>看久了。来不及。</div>
+    <div class="row blank"></div>
+    <div class="row dim">—— 以下字迹不同 ——</div>
+    <div class="row"><span class="d">四月廿八</span>接。</div>
+    <div class="ledger-note">风格样本（v0.1 遗留，按三原则修订中）；夜五烽簿体＋下游公文体属文案交接工作（03 §0 ④）。最后两条仍是全篇的枢纽：「看久了。来不及。」六个字把整个机制说完了；「接。」一个字完成了传承。</div>
+  </div>
+
+  <h3><span class="n">03</span>四类文本载体</h3>
+  <ul class="plain">
+    <li><b>烽簿</b>：历代守卒的涂记，有人写不完就断在半句。</li>
+    <li><b>墩上的物件</b>：熏黑的火盆、豁口的刀刃、墙上歪斜的刻痕。点一下出一句，每件对应一个已经不在了的前任。</li>
+    <li><b>结算短句</b>：天亮时不报分数，报一行事实。</li>
+    <li><b>题词</b>：开场最多一行，不复述世界观。</li>
+  </ul>
+
+  <h3><span class="n">预算</span>全文不超过 800 字</h3>
+  <table>
+    <thead><tr><th>载体</th><th style="width:22%">条数</th><th style="width:22%">预算</th></tr></thead>
+    <tbody>
+      <tr><td>题词</td><td>1</td><td class="num">≤ 30 字</td></tr>
+      <tr><td>烽簿条目</td><td>30 到 40</td><td class="num">约 500 字</td></tr>
+      <tr><td>物件注</td><td>6 到 8</td><td class="num">约 100 字</td></tr>
+      <tr><td>结算短句</td><td>约 20</td><td class="num">约 100 字</td></tr>
+      <tr><td><b>合计</b></td><td>—</td><td class="num">≤ 800 字</td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="n">弧线</span>不加字也能有情绪</h3>
+  <p>四段，全部由结算反馈推进，不靠任何一段说明文字：</p>
+  <ul class="plain">
+    <li><b>懵懂</b>：不知道该报什么，见影子就报高级。有人来，你觉得这是对的。</li>
+    <li><b>谨慎</b>：误报被罚，开始不敢报。空报几次，也没出事。</li>
+    <li><b>代价</b>：因为不敢报，某一次真的失守。结算短句只有一行。</li>
+    <li><b>决断</b>：最后一次大潮。你能做的只是看着，然后决定信不信自己。</li>
+  </ul>
+</section>
+
+<!-- ========== 十 ========== -->
+<section>
+  <h2>Ⅹ 屏幕与体量</h2>
+  <p class="h2sub">一屏，2D，一个人做十五天。</p>
+
+  <div class="screen">
+    <div class="row"><span class="lab">上</span><span class="val">日期 · 第几夜（不显示信用数值——信用由邻墩的回应行为表达）</span></div>
+    <div class="row" style="min-height:180px;background:radial-gradient(circle at 62% 46%, #1d242c 0%, #0a0c0e 62%)">
+      <span class="lab" style="align-self:flex-start">中</span>
+      <span class="val" style="align-self:flex-end">左 · 中 · 右三格海面（一次亮一格），右格远处是邻墩的值守灯火</span>
+    </div>
+    <div class="row"><span class="lab">下</span><span class="val">火盆（按住＝投柴报信）／ 海面（按住＝望）</span></div>
+  </div>
+
+  <p>整屏只有三个区域。中段是唯一的信息来源，玩家全部注意力都在那儿。这是「小而美」能成立的前提：一个动作、一处视野、一种情绪。</p>
+
+  <p>单线 2D 是拍板（<code>03</code> §1.4）：完成度是同分第一比较项；美学核心「看不清」在 2D 是天然的；代入感来自动词、等待、声音——屏幕本来就是守卒的眼睛。百度赛道硬门槛单文件 10MB，Godot wasm ~30MB 大概率过不去，H5 线就是这份单文件 demo。</p>
+</section>
+
+<!-- ========== 十一 ========== -->
+<section>
+  <h2>Ⅺ 风险</h2>
+  <p class="h2sub">我担心的三件事。</p>
+
+  <div class="risk">
+    <span class="t">反馈必须狠。这是生死线。</span>
+    <span class="d">信息类游戏最常见的死法是玩家不知道自己错在哪。结算必须具体到事实（梅头，九户），而不是一个分数或一句评语。第一轮测试如果有人说「不知道要干嘛」，就推倒重做反馈层。</span>
+  </div>
+
+  <div class="risk">
+    <span class="t">「看不清但能判断」的分寸极难拿捏。</span>
+    <span class="d">太模糊就退化成随机，太清楚就没有张力。玩家必须能数出影子有几个，但认不出那是不是倭船的形制。这条线的任何一侧都会毁掉核心体验，需要留出专门的调参时间。</span>
+  </div>
+
+  <div class="risk">
+    <span class="t">信用模型的调参会吃掉比你预期更多的时间。</span>
+    <span class="d">报准回补多少、误报扣多少、罚的分量，每一个数字都直接改变难度曲线。第一版已用粗暴数值跑通完整一夜；之后只调参不动结构。「军棍／记名」的分量校准属文案工作（03 §0 ②）。</span>
+  </div>
+</section>
+
+<!-- ========== 十二 ========== -->
+<section>
+  <h2>Ⅻ 点子池与待定</h2>
+  <p class="h2sub">已拍板的进 §1，否决的别再提，剩下的在这里排队。</p>
+
+  <h3><span class="n">待拍板</span>（03 §2，Godot 动工前过一遍）</h3>
+  <ul class="plain">
+    <li><b>邻墩灯完整语法 v2</b>：灭／呼吸／短亮（收到）／长亮（我正看着你的格）／连闪（我的海面有东西）。最后一夜灯反过来朝你连闪——整局验证别人的你，成了被验证的对象。</li>
+    <li><b>三格不等宽</b>：中格宽（责任区），左右窄缝（交给邻墩的盲区）——几何表达职责分工。</li>
+    <li><b>雾夜＝听的夜</b>（建议固定第 4 夜）：雾不退，只剩钟；雾夜里你听链——邻墩的钟响＝你的右格有事，而你永远看不见。</li>
+    <li><b>第 5 夜烽簿</b>：翻开的不是别人的历史，是你的——下游对你前几夜的公文体转录；然后天亮前写一行留给接班人的话。</li>
+    <li><b>四百年后的一次望</b>（结尾）：终夜同一构图，雾里过来的是巡境的拼字龙灯，拼出「天下太平」。你此生最后一条报信，回执在四百年后抵达。</li>
+    <li><b>信用可见化 v2</b>：举火后内陆方向的应火——几盏灯应你、多快、走多大一队。</li>
+    <li><b>等待期两件事</b>：点火盆、翻烽簿（原有设定，未实现）。</li>
+    <li><b>多夜结构</b>：5 夜还是 7 夜，每夜唯一的教学点／考验点（Godot 版）。</li>
+    <li><b>接力</b>：报出的信能否在后续夜里传下去，甚至成为别人烽簿里的一条记录（00 §6.2）。</li>
+    <li><b>结尾形态</b>：七月十五那一句出现在结算后，还是作为最后一次「望」的画面本身（00 §6.2）。</li>
+  </ul>
+
+  <h3><span class="n">已否决</span>（03 §3，别再重提）</h3>
+  <table>
+    <thead><tr><th style="width:34%">思路</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td>旗杆方向通道</td><td>搁置：史实有据但明海防用法未核；方向已定不可传</td></tr>
+      <tr><td>3D / 2D-3D 面板切换</td><td>否决：单线 2D（§Ⅹ）</td></tr>
+      <tr><td>下游视角一夜（村老决定要不要跑）</td><td>搁置：换输入动词换场景，一夜做不出质量；只可作 interlude 实验</td></tr>
+      <tr><td>烽火接力跑（动作向）</td><td>否决：违背一屏一动作</td></tr>
+      <tr><td>多人 / 存档 / 分支树</td><td>否决：铁律 1</td></tr>
+    </tbody>
+  </table>
+
+  <p>下一步的活：文案交接清单六项（<code>03</code> §0）——方案 A 行拼读校验、罚的分量、800 字预算盘点、烽簿体、雾夜文案、结算行序。执行侧只按拍板结果干活。</p>
+</section>
+
+<!-- ========== 考据 ========== -->
+<section>
+  <h2>附录 考据说明</h2>
+  <p class="h2sub">哪些可以直接用，哪些必须去核。状态总管在 04。</p>
+
+  <p><strong>已初核，可作设计依据（网络来源，原文在 01 §9）</strong></p>
+  <ul class="plain">
+    <li>《唐律疏议·擅兴》烽候不警条：失报徒三年／妄报徒一年；「多烽／少烽」入刑。</li>
+    <li>《塞上烽火品约》（居延出土）：分级体例＋「离合苣火」形态维度。</li>
+    <li>《汉书音义》／颜师古注：昼烟夜火；兜零「常悬之」（值守灯火原型）。</li>
+    <li>《练兵实纪》墩台设备条（蓟镇数据，沿海需另核）：《传烽歌》＝制度压缩成可记诵形式。</li>
+    <li>「守望相助」两处出处：《孟子·滕文公上》；王叔果《请筑堡疏》。</li>
+  </ul>
+
+  <p><strong>进正式文案前须二次核对（04 D1–D8）</strong></p>
+  <ul class="plain">
+    <li>唐律点校本措辞（《筹海图编》沿海烟墩制度、《传烽歌》全文、夜悬灯条文、品约 17 简、非遗编号 Ⅹ-85、沿海墩台驻兵与视野等，见 04）。</li>
+  </ul>
+
+  <p><strong>不进游戏的数字与说法</strong></p>
+  <ul class="plain">
+    <li>烽堠分级档位数（几人对应几烟几火）——未核。</li>
+    <li>单个墩台驻兵人数——未核（1175 是宁村所全所，不是墩）。</li>
+    <li>「15 分钟接力」类概括时长——不进正式文案。</li>
+    <li>术语避坑：不写「烽／燧」分工；不写「狼烟＝狼粪」；烽火戏诸侯只作文学原型。</li>
+  </ul>
+
+  <p class="small">素材授权：<code>素材/</code> 下四份材料全部按参考文献用，不按美术素材用；美术全部自制或自生成，并在《AI 使用与素材声明》里如实写。文化类内容出现具体数字／地名／官职时，逐条核对（<code>01</code> §5）。</p>
+</section>
+
+<footer>
+  守望 · 设计总览 v0.2 · 2026-11-22<br>
+  本页是 00–04 号文档的可视化转录，<strong>拍板以 00 §6.1 与 03 为准；本页不承载新决策</strong>——改表述请回写文档并同步 03。<br>
+  早期概念稿见《守望·设计文档-v0.1.html》（只读，看演化脉络用）。
+</footer>
+
+</div>
+</body>
+</html>
