@@ -303,6 +303,20 @@ const NIGHT = [
   }
 ];
 
+// 夜的日期与「再来一夜」的排布：日期推进、遇次重排、时限微抖
+const DATES = ['四月廿三', '四月廿四', '四月廿五', '四月廿六', '四月廿七'];
+function shuffleNight(){
+  const arr = NIGHT.slice(1).map(d => ({
+    ...d,
+    arrive: Math.round(d.arrive * (0.92 + Math.random() * 0.16))
+  }));
+  for (let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // ─────────────────────────────────────────────
 //  状态
 // ─────────────────────────────────────────────
@@ -328,6 +342,7 @@ const G = {
   neighbourBlink: 0,   // >0 时发光
   neighbourState: 'idle',
   nightOver: false,
+  nightNum: 1,         // 第几夜（1 = 四月廿三夜）
   burned: 0,           // 这一夜烧掉的总柴束
   coachReport: false,  // 「按住火盆」只提示一次
   stacking: false,     // 正在按住火盆投柴
@@ -340,17 +355,26 @@ const G = {
   fire: { level: 0, stackT: 0, confirm: 0, smoke: [], label: null }
 };
 
-function reset(){
+function reset(advance){
   G.phase = 'intro'; G.phaseT = 0; G.credit = 5; G.idx = -1; G.enc = null;
   G.looking = false; G.litSlice = null; G.holdT = 0; G.pressT = 0;
-  G.coachRevealed = false; G.sawAck = false;
+  if (advance){
+    G.nightNum++;
+    G.list = shuffleNight();
+  } else {
+    G.nightNum = 1;
+    G.list = NIGHT;
+    G.coachRevealed = false; G.sawAck = false;
+    G.coachReport = false;
+  }
   G.reveals = []; G.log = []; G.lost = [];
   G.dawnLines = []; G.dawnFinal = ''; G.nightOver = false;
   G.neighbourBlink = 0; G.neighbourState = 'idle';
-  G.burned = 0; G.coachReport = false; G.stacking = false;
+  G.burned = 0; G.stacking = false;
   G.ackQueue = []; G.ackBlink = 0; G.ackFlash = 0;
   G.tod = 'night'; G.todMix = 0;
   G.fire = { level: 0, stackT: 0, confirm: 0, smoke: [], label: null };
+  $('#title .s').textContent = '宁村所外　' + DATES[Math.min(G.nightNum - 1, DATES.length - 1)];
   $('#dawn').classList.remove('on');
   $('#dawn').innerHTML = '';
   $('#reveals').innerHTML = '';
@@ -373,7 +397,7 @@ function updateCredit(){
 //  遭遇
 // ─────────────────────────────────────────────
 function startEncounter(i){
-  const data = NIGHT[i];
+  const data = G.list[i];
   G.idx = i;
   G.phase = 'encounter';
   G.phaseT = 0;
@@ -435,8 +459,8 @@ function pushReveal(text){
   while (box.children.length > 4) box.removeChild(box.firstChild);
   G.reveals.push({ text });
 
-  // 第一次看清：提示可以松手了
-  if (G.idx === 0 && !G.coachRevealed){
+  // 第一次看清：提示可以松手了（只教第一晚）
+  if (G.idx === 0 && G.nightNum === 1 && !G.coachRevealed){
     G.coachRevealed = true;
     setHint('松手', 999999);
   }
@@ -525,6 +549,7 @@ function resolveEncounter(reported){
   const enc = G.enc;
   const data = enc.data;
   const threat = data.threat;
+  const creditBefore = G.credit; // 本遇之前的信用，决定下游这次的态度
   let lines = [];
   let dC = 0;
   let fatal = false;
@@ -633,6 +658,14 @@ function resolveEncounter(reported){
     }
   }
 
+  // 报高吃罚：浪费兵力要记账。失报／妄报在明代是军法重罪，这里只用通称（条文需核，见 03 §1.7）
+  if (reported !== null && dC <= -3) lines.push('你挨了一顿军棍。');
+  else if (reported !== null && dC <= -2) lines.push('墩簿上，记了你的名。');
+  // 信用低：下游不是不来，是来得慢——人的迟疑，不是制度性无视。只挂在报准／报低的遇，避免与「参将亲至」等写死文案冲突
+  if (reported !== null && dC >= 1 && creditBefore <= 2){
+    lines.push('上回的账还记着，人慢了半拍。');
+  }
+
   G.credit = Math.max(0, Math.min(10, G.credit + dC));
   updateCredit();
   G.log.push(...lines);
@@ -671,7 +704,7 @@ function afterResolve(){
     endNight(true);
     return;
   }
-  if (G.idx >= NIGHT.length - 1){
+  if (G.idx >= G.list.length - 1){
     endNight(false);
     return;
   }
@@ -699,12 +732,12 @@ function endNight(fatal){
   };
   const d = $('#dawn');
   let html = '';
-  html += '<div class="k">' + (fatal ? '失 守' : '第 二 夜 · 天 亮') + '</div>';
+  html += '<div class="k">' + (fatal ? '失 守' : '第 ' + cn(G.nightNum) + ' 夜 · 天 亮') + '</div>';
 
   if (fatal){
     html += '<p class="line">天没亮，事就完了。</p>';
   } else {
-    html += '<p class="line">四月廿四，天亮。</p>';
+    html += '<p class="line">' + DATES[Math.min(G.nightNum, DATES.length - 1)] + '，天亮。</p>';
   }
 
   if (G.lost.length){
@@ -757,7 +790,7 @@ function endNight(fatal){
   }, 5400);
 
   document.getElementById('again').addEventListener('click', () => {
-    reset();
+    reset(true);
   });
 }
 
@@ -847,7 +880,7 @@ function update(dt){
   else if (G.phase === 'idle'){
     if (G.phaseT > 2.2){
       const next = G.idx + 1;
-      if (next < NIGHT.length) startEncounter(next);
+      if (next < G.list.length) startEncounter(next);
       else endNight(false);
     }
   }
@@ -1139,8 +1172,10 @@ function drawNeighbour(hz){
     ctx.beginPath(); ctx.arc(x, hz - 10, 22, 0, Math.PI * 2); ctx.fill();
   }
 
-  const breathe = 0.35 + Math.sin(clock * 0.9) * 0.12;
-  let a = breathe * 0.5;
+  // 灯火摇曳：不是电灯的匀速呼吸，是火苗的乱颤
+  const flick = 0.42 + 0.1 * Math.sin(clock * 7.3) * Math.sin(clock * 3.1)
+              + 0.06 * Math.sin(clock * 13.7) + 0.04 * Math.sin(clock * 23.1);
+  let a = flick * 0.5;
   if (G.neighbourBlink > 0) a = Math.max(a, G.neighbourBlink * 0.95);
   if (G.ackBlink > 0) a = Math.max(a, G.ackBlink * 0.95);
   if (G.credit <= 1) a *= 0.25;
