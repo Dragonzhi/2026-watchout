@@ -661,9 +661,9 @@ function resolveEncounter(reported){
   // 报高吃罚：浪费兵力要记账。失报／妄报在明代是军法重罪，这里只用通称（条文需核，见 03 §1.7）
   if (reported !== null && dC <= -3) lines.push('你挨了一顿军棍。');
   else if (reported !== null && dC <= -2) lines.push('墩簿上，记了你的名。');
-  // 信用低：下游不是不来，是来得慢——人的迟疑，不是制度性无视。只挂在报准／报低的遇，避免与「参将亲至」等写死文案冲突
+  // 信用低＝下游多一道核实工序：先遣哨探看虚实，主力后继（方案 A，03 §1.7）。不是怀疑人格，更不是不管
   if (reported !== null && dC >= 1 && creditBefore <= 2){
-    lines.push('上回的账还记着，人慢了半拍。');
+    lines.push('先来了两个哨探，兵还在后头。');
   }
 
   G.credit = Math.max(0, Math.min(10, G.credit + dC));
