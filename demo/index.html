@@ -224,6 +224,20 @@ const Audio_ = {
     const g2 = this.ctx.createGain(); g2.gain.value = 0.1;
     src.connect(bp); bp.connect(g2); g2.connect(this.master);
     src.start(t + 0.03);
+  },
+  // 远处邻墩复举的一声闷响：一柱烟一回，耳朵也数得清
+  ack(){
+    if (!this.ctx || !this.on) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(64, t);
+    o.frequency.exponentialRampToValueAtTime(34, t + 0.22);
+    g.gain.setValueAtTime(0.09, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.55);
   }
 };
 
@@ -231,7 +245,19 @@ const Audio_ = {
 //  夜的内容
 // ─────────────────────────────────────────────
 // level: 真实规模（0 = 无，1 小股，2 大队）
+// tod: 昼夜；revInt: 每次雾开的间隔秒数——昼看得清，间隔短
 const NIGHT = [
+  {
+    id: 'e0',
+    tod: 'day',
+    arrive: 30,
+    revInt: 1.0,
+    entities: [
+      { slice: 'center', shape: 'sail', ox: 0, dy: 0, level: 1,
+        reveals: ['一个。', '帆张满。', '吃水深。'] }
+    ],
+    threat: { level: 1, slice: 'center' }
+  },
   {
     id: 'e1',
     arrive: 26,
@@ -291,7 +317,6 @@ const G = {
   holdT: 0,
   pressT: 0,
   coachRevealed: false,
-  sawNeighbour: false,
   sliceEnterT: 0,
   reveals: [],         // {text, born}
   log: [],
@@ -308,18 +333,23 @@ const G = {
   stacking: false,     // 正在按住火盆投柴
   ackQueue: [],        // 邻墩回执的时点
   ackBlink: 0,
+  ackFlash: 0,         // 邻墩复举（点火）的余辉
+  sawAck: false,       // 第一次回执的教学提示，只出一次
+  tod: 'night',        // 当前时段：night | day
+  todMix: 0,           // 0 夜 → 1 昼，缓动
   fire: { level: 0, stackT: 0, confirm: 0, smoke: [], label: null }
 };
 
 function reset(){
   G.phase = 'intro'; G.phaseT = 0; G.credit = 5; G.idx = -1; G.enc = null;
   G.looking = false; G.litSlice = null; G.holdT = 0; G.pressT = 0;
-  G.coachRevealed = false; G.sawNeighbour = false;
+  G.coachRevealed = false; G.sawAck = false;
   G.reveals = []; G.log = []; G.lost = [];
   G.dawnLines = []; G.dawnFinal = ''; G.nightOver = false;
   G.neighbourBlink = 0; G.neighbourState = 'idle';
   G.burned = 0; G.coachReport = false; G.stacking = false;
-  G.ackQueue = []; G.ackBlink = 0;
+  G.ackQueue = []; G.ackBlink = 0; G.ackFlash = 0;
+  G.tod = 'night'; G.todMix = 0;
   G.fire = { level: 0, stackT: 0, confirm: 0, smoke: [], label: null };
   $('#dawn').classList.remove('on');
   $('#dawn').innerHTML = '';
@@ -347,6 +377,7 @@ function startEncounter(i){
   G.idx = i;
   G.phase = 'encounter';
   G.phaseT = 0;
+  G.tod = data.tod || 'night';
   G.enc = {
     data,
     elapsed: 0,
@@ -367,7 +398,7 @@ function startEncounter(i){
   $('#reveals').innerHTML = '';
   G.fire.level = 0; G.fire.stackT = 0; G.fire.confirm = 0; G.fire.label = null;
   const HINTS = {
-    e1: ['按住　看', 999999],
+    e0: ['按住　看', 999999],
     e3: ['左右各有一处　你只能看一处', 5400],
     e4: ['三格　你一次只能照亮一格', 5400]
   };
@@ -502,7 +533,23 @@ function resolveEncounter(reported){
   const seen = {};
   enc.entities.forEach(e => { seen[e.slice] = Math.max(seen[e.slice] || 0, e.revealed); });
 
-  if (data.id === 'e1'){
+  if (data.id === 'e0'){
+    if (reported === null || reported === 0){
+      lines = ['你没报。', '日头偏西，那船靠了岸。', '梅头，三户。'];
+      dC = -1; G.lost.push({ place: '梅头', n: 3 });
+    } else if (reported === 1){
+      lines = ['你烧了一柱烟。', '卫所至。', '那船掉头走了。'];
+      dC = +2;
+    } else if (reported === 2){
+      lines = ['你烧了两柱烟。', '来了一整队。', '只为一条船。'];
+      dC = -2;
+    } else {
+      lines = ['你烧了三柱烟。', '备倭的船都动了。', '海上只剩一道桅。'];
+      dC = -3;
+    }
+  }
+
+  else if (data.id === 'e1'){
     if (reported === null || reported === 0){
       lines = ['你没报。', '天亮时，墩下有三道湿脚印。', '梅头，三户。'];
       dC = -1; G.lost.push({ place: '梅头', n: 3 });
@@ -593,7 +640,7 @@ function resolveEncounter(reported){
 
   // 邻墩回执：烧几柱烟回几下；信用见底，就没有回音
   if (reported !== null && reported >= 1 && G.credit > 1){
-    for (let i = 0; i < reported; i++) G.ackQueue.push(clock + 1.7 + i * 0.62);
+    for (let i = 0; i < reported; i++) G.ackQueue.push(clock + 2.6 + i * 0.75);
   }
 
   enc.resolved = true;
@@ -633,10 +680,6 @@ function afterResolve(){
   G.enc = null;
   G.litSlice = null;
   $('#reveals').innerHTML = '';
-  if (!G.sawNeighbour){
-    G.sawNeighbour = true;
-    setHint('邻墩的灯　你烧几柱，它回几下', 5200);
-  }
 }
 
 // ─────────────────────────────────────────────
@@ -731,11 +774,22 @@ function update(dt){
 
   if (G.neighbourBlink > 0) G.neighbourBlink = Math.max(0, G.neighbourBlink - dt * 0.55);
 
-  // 邻墩回执：到点闪一下
+  // 昼夜缓动 + 邻墩回执：到点复举一次（灯闪、火闪、一声闷响）
+  G.todMix += ((G.tod === 'day' ? 1 : 0) - G.todMix) * Math.min(1, dt * 1.2);
   for (let i = G.ackQueue.length - 1; i >= 0; i--){
-    if (clock >= G.ackQueue[i]){ G.ackQueue.splice(i, 1); G.ackBlink = 1; }
+    if (clock >= G.ackQueue[i]){
+      G.ackQueue.splice(i, 1);
+      G.ackBlink = 1;
+      G.ackFlash = 1;
+      Audio_.ack();
+      if (!G.sawAck){
+        G.sawAck = true;
+        setHint('邻墩的灯　你烧几柱，它回几下', 6500);
+      }
+    }
   }
   if (G.ackBlink > 0) G.ackBlink = Math.max(0, G.ackBlink - dt * 2.4);
+  if (G.ackFlash > 0) G.ackFlash = Math.max(0, G.ackFlash - dt * 0.9);
 
   // 标题卡
   if (G.phase === 'intro'){
@@ -769,8 +823,9 @@ function update(dt){
       G.holdT += dt;
       G.pressT += dt;
       const list = entitiesIn(G.litSlice);
+      const revInt = enc.data.revInt || 1.30;
       list.forEach(e => {
-        const due = G.sliceEnterT + (e.revealed + 1) * 1.30;
+        const due = G.sliceEnterT + (e.revealed + 1) * revInt;
         if (e.revealed < e.reveals.length && G.holdT >= due){
           e.revealed++;
           pushReveal(e.reveals[e.revealed - 1]);
@@ -878,32 +933,60 @@ function drawBoat(x, y, s, shape, clarity, lit){
   }
 }
 
+// ─────────────────────────────────────────────
+//  昼夜两套色。G.todMix 在 0（夜）和 1（昼）之间缓动，入夜与天明都有过程
+// ─────────────────────────────────────────────
+const PAL_NIGHT = {
+  skyTop: [5, 6, 9], skyMid: [8, 10, 14], skyHz: [13, 16, 20],
+  seaHz: [13, 17, 22], seaMid: [10, 13, 17], seaLow: [6, 8, 10],
+  wave: [140, 160, 175], horizon: [160, 175, 190],
+  mound: [5, 7, 10], smoke: [150, 160, 175],
+  fogScale: 1, horizonA: 0.09, waveA: 1
+};
+const PAL_DAY = {
+  skyTop: [69, 77, 84], skyMid: [96, 104, 110], skyHz: [130, 138, 143],
+  seaHz: [93, 102, 107], seaMid: [64, 74, 80], seaLow: [38, 46, 51],
+  wave: [46, 56, 62], horizon: [70, 80, 86],
+  mound: [30, 36, 40], smoke: [64, 72, 78],
+  fogScale: 0.35, horizonA: 0.2, waveA: 1.5
+};
+function mixCh(a, b, t){ return Math.round(a + (b - a) * t); }
+function mixCol(a, b, t){
+  return 'rgb(' + mixCh(a[0], b[0], t) + ',' + mixCh(a[1], b[1], t) + ',' + mixCh(a[2], b[2], t) + ')';
+}
+function mixColA(a, b, t, alpha){
+  return 'rgba(' + mixCh(a[0], b[0], t) + ',' + mixCh(a[1], b[1], t) + ',' + mixCh(a[2], b[2], t) + ',' + alpha + ')';
+}
+
 function draw(){
   const hz = HORIZON();
+  const m = G.todMix;
+  const pN = PAL_NIGHT, pD = PAL_DAY;
 
   // 天
   let g = ctx.createLinearGradient(0, 0, 0, hz);
-  g.addColorStop(0, '#050609');
-  g.addColorStop(0.62, '#080a0e');
-  g.addColorStop(1, '#0d1014');
+  g.addColorStop(0, mixCol(pN.skyTop, pD.skyTop, m));
+  g.addColorStop(0.62, mixCol(pN.skyMid, pD.skyMid, m));
+  g.addColorStop(1, mixCol(pN.skyHz, pD.skyHz, m));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, hz);
 
   // 海
   g = ctx.createLinearGradient(0, hz, 0, H);
-  g.addColorStop(0, '#0d1116');
-  g.addColorStop(0.35, '#0a0d11');
-  g.addColorStop(1, '#06080a');
+  g.addColorStop(0, mixCol(pN.seaHz, pD.seaHz, m));
+  g.addColorStop(0.35, mixCol(pN.seaMid, pD.seaMid, m));
+  g.addColorStop(1, mixCol(pN.seaLow, pD.seaLow, m));
   ctx.fillStyle = g;
   ctx.fillRect(0, hz, W, H - hz);
 
   // 海面细纹
   ctx.save();
+  const waveA = pN.waveA + (pD.waveA - pN.waveA) * m;
   for (let i = 0; i < 26; i++){
     const y = hz + 10 + i * ((H - hz) / 28);
     const p = i / 26;
     const off = Math.sin(clock * 0.22 + i * 1.7) * (8 + p * 26);
-    ctx.strokeStyle = 'rgba(140,160,175,' + (0.018 + p * 0.028) + ')';
+    ctx.strokeStyle = mixColA(pN.wave, pD.wave, m, (0.018 + p * 0.028) * waveA);
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(W * 0.06 + off, y);
@@ -913,7 +996,7 @@ function draw(){
   ctx.restore();
 
   // 地平线
-  ctx.strokeStyle = 'rgba(160,175,190,0.09)';
+  ctx.strokeStyle = mixColA(pN.horizon, pD.horizon, m, pN.horizonA + (pD.horizonA - pN.horizonA) * m);
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0, hz); ctx.lineTo(W, hz); ctx.stroke();
 
@@ -969,7 +1052,15 @@ function draw(){
         drawBoat(cx, y, s, e.shape, clarity, true);
         ctx.globalAlpha = 1;
       } else {
-        drawSmudge(cx, y, s, idx + e.ox);
+        // 白天看得见轮廓：夜里的「一团」随天色变回「一条船」
+        const dv = Math.max(0, Math.min(1, (G.todMix - 0.2) / 0.6));
+        if (dv > 0.05){
+          ctx.globalAlpha = 0.15 + dv * 0.45;
+          drawBoat(cx, y, s, e.shape, clarity, false);
+          ctx.globalAlpha = 1;
+        } else {
+          drawSmudge(cx, y, s, idx + e.ox);
+        }
       }
     });
   }
@@ -997,6 +1088,7 @@ function draw(){
 
 function drawFog(hz){
   const t = clock;
+  const fs = 1 + (PAL_DAY.fogScale - 1) * G.todMix; // 白天雾薄
   const blobs = [
     { x: 0.26, y: 0.46, r: 0.52, a: 0.055, sp: 0.13 },
     { x: 0.72, y: 0.53, r: 0.46, a: 0.045, sp: -0.09 },
@@ -1007,8 +1099,8 @@ function drawFog(hz){
     const y = (b.y + Math.cos(t * b.sp * 0.7) * 0.03) * H;
     const r = b.r * Math.max(W, H) * 0.62;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, 'rgba(150,163,175,' + b.a + ')');
-    g.addColorStop(0.55, 'rgba(150,163,175,' + (b.a * 0.35) + ')');
+    g.addColorStop(0, 'rgba(150,163,175,' + (b.a * fs).toFixed(4) + ')');
+    g.addColorStop(0.55, 'rgba(150,163,175,' + (b.a * 0.35 * fs).toFixed(4) + ')');
     g.addColorStop(1, 'rgba(150,163,175,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
@@ -1016,8 +1108,8 @@ function drawFog(hz){
 
   // 海面雾带
   const g2 = ctx.createLinearGradient(0, hz - 10, 0, H);
-  g2.addColorStop(0, 'rgba(170,182,194,0.045)');
-  g2.addColorStop(0.22, 'rgba(170,182,194,0.015)');
+  g2.addColorStop(0, 'rgba(170,182,194,' + (0.045 * fs).toFixed(4) + ')');
+  g2.addColorStop(0.22, 'rgba(170,182,194,' + (0.015 * fs).toFixed(4) + ')');
   g2.addColorStop(1, 'rgba(170,182,194,0)');
   ctx.fillStyle = g2;
   ctx.fillRect(0, hz - 10, W, H - hz + 10);
@@ -1025,7 +1117,28 @@ function drawFog(hz){
 
 function drawNeighbour(hz){
   const x = W - 42;
-  const y = hz - 26;
+  const m = G.todMix;
+  const y = hz - 20;
+
+  // 邻墩的墩台剪影：灯长在它顶上
+  ctx.fillStyle = mixCol(PAL_NIGHT.mound, PAL_DAY.mound, m);
+  ctx.beginPath();
+  ctx.moveTo(x - 17, hz + 1);
+  ctx.quadraticCurveTo(x - 7, hz - 13, x, hz - 12);
+  ctx.quadraticCurveTo(x + 9, hz - 11, x + 16, hz + 1);
+  ctx.closePath();
+  ctx.fill();
+
+  // 复举：邻墩也点火，一下余辉
+  if (G.ackFlash > 0){
+    const fa = G.ackFlash * (0.55 + Math.sin(clock * 26) * 0.12);
+    const fg = ctx.createRadialGradient(x, hz - 10, 0, x, hz - 10, 22);
+    fg.addColorStop(0, 'rgba(224,138,60,' + Math.min(0.85, fa).toFixed(3) + ')');
+    fg.addColorStop(1, 'rgba(224,138,60,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.arc(x, hz - 10, 22, 0, Math.PI * 2); ctx.fill();
+  }
+
   const breathe = 0.35 + Math.sin(clock * 0.9) * 0.12;
   let a = breathe * 0.5;
   if (G.neighbourBlink > 0) a = Math.max(a, G.neighbourBlink * 0.95);
@@ -1112,7 +1225,7 @@ function drawSmoke(fx, fy, s){
     if (y < 24) break;
     const x = fx + Math.sin(t * 1.5 + s.ph) * 7 + t * 9;
     const r = 3.5 + t * 2.4;
-    ctx.fillStyle = 'rgba(150,160,175,' + al.toFixed(3) + ')';
+    ctx.fillStyle = mixColA(PAL_NIGHT.smoke, PAL_DAY.smoke, G.todMix, al);
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
 }
