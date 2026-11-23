@@ -7,10 +7,10 @@ extends Node2D
 ## 轮廓刻意做碎：桅索、栏杆、砌石、碎礁。同样的低对比下，
 ## 边缘越多越难认出「是什么」；再加一圈 1px 的暗边，当距离羽化用。
 
-const INK := Color(0.27, 0.25, 0.20)
-const SHADE := Color(0.16, 0.15, 0.12)
-const RIM := Color(0.11, 0.10, 0.085)
-const FAR := 0.80   # 礁石更远一档，整体压暗
+const INK := Color(0.185, 0.170, 0.140)
+const SHADE := Color(0.105, 0.098, 0.082)
+const RIM := Color(0.052, 0.048, 0.042)
+const FAR := 0.88   # 礁石更远一档，整体压暗
 
 
 func _draw() -> void:
