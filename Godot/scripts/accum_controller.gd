@@ -13,46 +13,96 @@ extends Control
 const AUTO_GAZE := Vector2(0.503, 0.61)   # 墩台
 const AWAY_GAZE := Vector2(0.16, 0.32)    # 空处，用来验「移开视线就重新糊上」
 
+@export_group("累积")
+
+## 圈内累积系数：每帧保留多少过去。
+##
+## 越接近 1，累积越慢、显影要等得越久，但留下来的噪点越少；
+## 调低会立刻显影，也会立刻看出闪烁。0.99 左右是「盯几秒才成形」。
 @export_range(0.90, 0.999, 0.001) var decay: float = 0.993:
 	set(value):
 		decay = clampf(value, 0.90, 0.999)
 		_push_params()
+
+## 圈外的累积系数。故意不是 0——完全不平滑的话，闪烁层就是原地跳的雪花。
+##
+## 0.80 大致是「平滑，但收敛明显慢」：雾还在动，只是不闪。
 @export_range(0.0, 0.95, 0.01) var keep_outside: float = 0.80:
 	set(value):
 		keep_outside = clampf(value, 0.0, 0.95)
 		_push_params()
+
+@export_group("注视点")
+
+## 注视半径，按屏幕高度的比例计；也是清窗的半径。
+##
+## 0.30 ≈ 屏幕高度的 30%。调小更聚光，调到 1.0 以上接近整屏都清。
 @export_range(0.02, 1.2, 0.01) var gaze_radius: float = 0.30:
 	set(value):
 		gaze_radius = maxf(value, 0.02)
 		_push_params()
-@export_range(0.0, 1.0, 0.01) var noise_strength: float = 1.0:
-	set(value):
-		noise_strength = clampf(value, 0.0, 1.0)
-		_push_params()
+
+@export_group("雾")
+
+## 圈外远岸浓度：雾的主体，负责「看不清」。
+##
+## 和 Bank Inside 一起决定清窗的落差。0.6–0.9 之间试。
 @export_range(0.0, 1.0, 0.01) var bank_outside: float = 0.60:
 	set(value):
 		bank_outside = clampf(value, 0.0, 1.0)
 		_push_params()
+
+## 注视圈内远岸被擦到多薄。
+##
+## 0 会挖成一个黑洞，看着像手电；0.12–0.2 是「雾薄了，但还在」。
 @export_range(0.0, 1.0, 0.01) var bank_inside: float = 0.16:
 	set(value):
 		bank_inside = clampf(value, 0.0, 1.0)
 		_push_params()
+
+## 圈外近帘浓度：漂得比远岸快 2.5 倍的那层薄雾。
+##
+## 视差靠它——近处雾动得快，才有「雾有厚度」的感觉。
 @export_range(0.0, 1.0, 0.01) var veil_outside: float = 0.18:
 	set(value):
 		veil_outside = clampf(value, 0.0, 1.0)
 		_push_params()
+
+## 圈内残留的近帘。窗里的地板亮度基本由它决定。
+##
+## 0 = 窗内纯黑；0.08–0.12 会让窗里还留一层来去可见的薄雾。
 @export_range(0.0, 1.0, 0.01) var veil_inside: float = 0.10:
 	set(value):
 		veil_inside = clampf(value, 0.0, 1.0)
 		_push_params()
+
+## 雾面上那条斜向月光亮带的强度，给雾一个光源方向。
+##
+## 0 = 整屏死平；0.06–0.12 有层次；再高就开始像白天。
 @export_range(0.0, 0.4, 0.005) var moon_glow: float = 0.06:
 	set(value):
 		moon_glow = clampf(value, 0.0, 0.4)
 		_push_params()
+
+## 闪烁层振幅的倍率。闪烁层自身峰值固定在编码空间 0.08，这里只是整体缩放。
+##
+## 0 = 雾完全静止（累积就没东西可抹，不要这么用）；1.0 = 默认。
+@export_range(0.0, 1.0, 0.01) var noise_strength: float = 1.0:
+	set(value):
+		noise_strength = clampf(value, 0.0, 1.0)
+		_push_params()
+
+@export_group("画质")
+
+## 内部分辨率。场景与累积都在这上面跑，最后由 TextureRect 用 Nearest 放大到全屏。
+##
+## 320×180 是这个原型的风格基线；改大更锐利，改小更粗。
 @export var internal_size: Vector2i = Vector2i(320, 180):
 	set(value):
 		internal_size = Vector2i(clampi(value.x, 160, 640), clampi(value.y, 90, 360))
 		_apply_internal_size()
+
+@export_group("")
 
 @onready var _scene_view: SubViewport = $SceneView
 @onready var _accum_a: SubViewport = $AccumA
