@@ -6,6 +6,7 @@
 [ext_resource type="Shader" path="res://scripts/accumulate.gdshader" id="4_acc"]
 [ext_resource type="Script" path="res://scripts/gaze_marker.gd" id="5_gaze"]
 [ext_resource type="Shader" path="res://scripts/decode.gdshader" id="6_decode"]
+[ext_resource type="Script" path="res://scripts/foreground.gd" id="7_fg"]
 
 [sub_resource type="ShaderMaterial" id="Mat_fog"]
 shader = ExtResource("2_fog")
@@ -50,6 +51,7 @@ offset_right = 320.0
 offset_bottom = 180.0
 mouse_filter = 2
 
+
 [node name="AccumA" type="SubViewport" parent="."]
 size = Vector2i(320, 180)
 render_target_update_mode = 4
@@ -82,7 +84,14 @@ grow_vertical = 2
 mouse_filter = 2
 expand_mode = 1
 
+[node name="NearLayer" type="CanvasLayer" parent="."]
+layer = 2
+
+[node name="Foreground" type="Node2D" parent="NearLayer"]
+script = ExtResource("7_fg")
+
 [node name="GazeLayer" type="CanvasLayer" parent="."]
+layer = 3
 
 [node name="GazeMarker" type="Node2D" parent="GazeLayer"]
 script = ExtResource("5_gaze")

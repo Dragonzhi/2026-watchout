@@ -29,13 +29,25 @@ const AWAY_GAZE := Vector2(0.16, 0.32)    # 空处，用来验「移开视线就
 	set(value):
 		noise_strength = clampf(value, 0.0, 1.0)
 		_push_params()
-@export_range(0.0, 1.0, 0.01) var fog_outside: float = 0.78:
+@export_range(0.0, 1.0, 0.01) var bank_outside: float = 0.60:
 	set(value):
-		fog_outside = clampf(value, 0.0, 1.0)
+		bank_outside = clampf(value, 0.0, 1.0)
 		_push_params()
-@export_range(0.0, 1.0, 0.01) var fog_inside: float = 0.14:
+@export_range(0.0, 1.0, 0.01) var bank_inside: float = 0.16:
 	set(value):
-		fog_inside = clampf(value, 0.0, 1.0)
+		bank_inside = clampf(value, 0.0, 1.0)
+		_push_params()
+@export_range(0.0, 1.0, 0.01) var veil_outside: float = 0.18:
+	set(value):
+		veil_outside = clampf(value, 0.0, 1.0)
+		_push_params()
+@export_range(0.0, 1.0, 0.01) var veil_inside: float = 0.10:
+	set(value):
+		veil_inside = clampf(value, 0.0, 1.0)
+		_push_params()
+@export_range(0.0, 0.4, 0.005) var moon_glow: float = 0.06:
+	set(value):
+		moon_glow = clampf(value, 0.0, 0.4)
 		_push_params()
 @export var internal_size: Vector2i = Vector2i(320, 180):
 	set(value):
@@ -51,6 +63,7 @@ const AWAY_GAZE := Vector2(0.16, 0.32)    # 空处，用来验「移开视线就
 @onready var _fill_b: ColorRect = $AccumB/Fill
 @onready var _marker: Node2D = $GazeLayer/GazeMarker
 @onready var _shapes: Node2D = $SceneView/Shapes
+@onready var _foreground: Node2D = $NearLayer/Foreground
 
 var _mat_fog: ShaderMaterial
 var _mat_a: ShaderMaterial
@@ -96,6 +109,9 @@ func _ready() -> void:
 
 	print("[gaze] display rect=", _display.get_rect(), " viewport=", get_viewport_rect().size,
 		" internal=", internal_size)
+
+	_fit_foreground()
+	get_viewport().size_changed.connect(_fit_foreground)
 
 	_auto_shot = "--shot" in OS.get_cmdline_user_args()
 	if _auto_shot:
@@ -166,8 +182,11 @@ func _push_params() -> void:
 		_mat_decode.set_shader_parameter("gaze_radius", gaze_radius)
 		_mat_decode.set_shader_parameter("aspect", aspect)
 		_mat_decode.set_shader_parameter("internal_size", Vector2(internal_size))
-		_mat_decode.set_shader_parameter("density_outside", fog_outside)
-		_mat_decode.set_shader_parameter("density_inside", fog_inside)
+		_mat_decode.set_shader_parameter("bank_outside", bank_outside)
+		_mat_decode.set_shader_parameter("bank_inside", bank_inside)
+		_mat_decode.set_shader_parameter("veil_outside", veil_outside)
+		_mat_decode.set_shader_parameter("veil_inside", veil_inside)
+		_mat_decode.set_shader_parameter("moon_glow", moon_glow)
 
 
 func _apply_internal_size() -> void:
@@ -183,7 +202,13 @@ func _apply_internal_size() -> void:
 		c.size = s
 	# 形状是按 320×180 画的，换内部分辨率时整体缩放，构图不跑。
 	_shapes.scale = s / Vector2(320.0, 180.0)
+	_fit_foreground()
 	_push_params()
+
+
+func _fit_foreground() -> void:
+	if _foreground != null:
+		_foreground.scale = get_viewport_rect().size / Vector2(320.0, 180.0)
 
 
 func _input(event: InputEvent) -> void:
