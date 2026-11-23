@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/shapes.gd" id="3_shapes"]
 [ext_resource type="Shader" path="res://scripts/accumulate.gdshader" id="4_acc"]
 [ext_resource type="Script" path="res://scripts/gaze_marker.gd" id="5_gaze"]
+[ext_resource type="Shader" path="res://scripts/decode.gdshader" id="6_decode"]
 
 [sub_resource type="ShaderMaterial" id="Mat_fog"]
 shader = ExtResource("2_fog")
@@ -14,6 +15,9 @@ shader = ExtResource("4_acc")
 
 [sub_resource type="ShaderMaterial" id="Mat_acc_b"]
 shader = ExtResource("4_acc")
+
+[sub_resource type="ShaderMaterial" id="Mat_decode"]
+shader = ExtResource("6_decode")
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -67,6 +71,7 @@ offset_right = 320.0
 offset_bottom = 180.0
 
 [node name="Display" type="TextureRect" parent="."]
+material = SubResource("Mat_decode")
 texture_filter = 1
 layout_mode = 1
 anchors_preset = 15

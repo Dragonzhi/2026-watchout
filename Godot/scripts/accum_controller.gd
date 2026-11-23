@@ -11,7 +11,7 @@ extends Control
 const AUTO_GAZE := Vector2(0.503, 0.61)   # 自动截图时的注视点：正对中间那座墩台
 const AUTO_SHOT_DELAY := 6.0
 
-@export_range(0.90, 0.999, 0.001) var decay: float = 0.99:
+@export_range(0.90, 0.999, 0.001) var decay: float = 0.993:
 	set(value):
 		decay = clampf(value, 0.90, 0.999)
 		_push_params()
@@ -19,7 +19,7 @@ const AUTO_SHOT_DELAY := 6.0
 	set(value):
 		gaze_radius = maxf(value, 0.02)
 		_push_params()
-@export_range(0.0, 1.0, 0.01) var noise_strength: float = 0.45:
+@export_range(0.0, 1.0, 0.01) var noise_strength: float = 0.85:
 	set(value):
 		noise_strength = clampf(value, 0.0, 1.0)
 		_push_params()
@@ -193,4 +193,7 @@ func _run_auto_shot() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await capture_screenshot("check_t2")
+	# 再等两秒抓一张：两张之差就是「雾还在不在动」。冻住了说明累积收敛成静止图。
+	await get_tree().create_timer(2.0).timeout
+	await capture_screenshot("check_t3")
 	get_tree().quit()
