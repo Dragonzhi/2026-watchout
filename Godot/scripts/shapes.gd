@@ -5,8 +5,8 @@ extends Node2D
 ## 现在只是占位剪影，后面换成真的船／墩／礁。
 ## 两级墨色＋底部压暗：显影出来是「一样东西」，不是一块平面灰。
 
-const INK := Color(0.42, 0.38, 0.31)
-const SHADE := Color(0.24, 0.22, 0.17)
+const INK := Color(0.34, 0.31, 0.25)
+const SHADE := Color(0.20, 0.18, 0.14)
 
 
 func _draw() -> void:

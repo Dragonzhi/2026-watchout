@@ -11,6 +11,9 @@ uniform float gaze_radius : hint_range(0.02, 1.5) = 0.30;
 uniform float decay : hint_range(0.0, 0.999) = 0.99;
 uniform float aspect : hint_range(0.5, 4.0) = 1.7777778;
 uniform float prime : hint_range(0.0, 1.0) = 0.0;
+// 圈外 keep 不是 0：完全不平滑的话，闪烁层就是一层原地跳的雪花。
+// 0.80 是「平滑，但收敛得很慢」，仍然看得出在动。
+uniform float keep_outside : hint_range(0.0, 0.99) = 0.80;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -36,7 +39,7 @@ void fragment() {
 
 	// acc = mix(prev, cur, w)。这里写等价形式：
 	// keep 是「保留过去」的权重，w = 1 - keep。
-	float keep = mix(0.0, decay, focus);
+	float keep = mix(keep_outside, decay, focus);
 	keep = mix(keep, 0.0, prime);
 
 	vec3 cur = texture(cur_tex, UV).rgb;

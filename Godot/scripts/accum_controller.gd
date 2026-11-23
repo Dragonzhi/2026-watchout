@@ -2,26 +2,40 @@ extends Control
 
 ## 累积凝视原型。
 ##
-## 雾一直在动；盯住的地方逐帧累积，动的雾被平均掉，雾里的静止目标慢慢浮出来。
-## 视线一离开，那块屏幕立刻退回当前噪声——看得越清的东西，越是过去。
+## 三层分工：
+##   闪烁层 fog.gdshader —— 零均值加法信号，进累积，只负责「动」。
+##   底雾   decode.gdshader —— 正的、慢的、不累积，负责「看不清」，靠近注视点擦薄。
+##   累积   accumulate.gdshader —— 圈内 keep→decay 把闪烁抹平，圈外 keep→keep_outside 只慢平滑。
 ##
-## 结构：SceneView（雾＋目标）→ AccumA／AccumB 交替累积 → Display 放大到全屏。
+## 结构：SceneView（雾＋目标）→ AccumA／AccumB 交替累积 → Display 解码并叠底雾。
 ## 硬约束：一个 SubViewport 只读另一个的上一帧、写自己；写完交换角色，绝不读自己。
 
-const AUTO_GAZE := Vector2(0.503, 0.61)   # 自动截图时的注视点：正对中间那座墩台
-const AUTO_SHOT_DELAY := 6.0
+const AUTO_GAZE := Vector2(0.503, 0.61)   # 墩台
+const AWAY_GAZE := Vector2(0.16, 0.32)    # 空处，用来验「移开视线就重新糊上」
 
 @export_range(0.90, 0.999, 0.001) var decay: float = 0.993:
 	set(value):
 		decay = clampf(value, 0.90, 0.999)
 		_push_params()
+@export_range(0.0, 0.95, 0.01) var keep_outside: float = 0.80:
+	set(value):
+		keep_outside = clampf(value, 0.0, 0.95)
+		_push_params()
 @export_range(0.02, 1.2, 0.01) var gaze_radius: float = 0.30:
 	set(value):
 		gaze_radius = maxf(value, 0.02)
 		_push_params()
-@export_range(0.0, 1.0, 0.01) var noise_strength: float = 0.85:
+@export_range(0.0, 1.0, 0.01) var noise_strength: float = 1.0:
 	set(value):
 		noise_strength = clampf(value, 0.0, 1.0)
+		_push_params()
+@export_range(0.0, 1.0, 0.01) var fog_outside: float = 0.78:
+	set(value):
+		fog_outside = clampf(value, 0.0, 1.0)
+		_push_params()
+@export_range(0.0, 1.0, 0.01) var fog_inside: float = 0.14:
+	set(value):
+		fog_inside = clampf(value, 0.0, 1.0)
 		_push_params()
 @export var internal_size: Vector2i = Vector2i(320, 180):
 	set(value):
@@ -41,21 +55,24 @@ const AUTO_SHOT_DELAY := 6.0
 var _mat_fog: ShaderMaterial
 var _mat_a: ShaderMaterial
 var _mat_b: ShaderMaterial
+var _mat_decode: ShaderMaterial
 
-var _tex_cur: ViewportTexture    # SceneView：本帧的雾与目标
+var _tex_cur: ViewportTexture
 var _tex_a: ViewportTexture
 var _tex_b: ViewportTexture
 
 var _gaze := Vector2(0.5, 0.5)
 var _write_a := true
-var _warmup := 2                 # 前两帧各灌一次，让两个缓冲都有内容，别从全黑慢慢爬上来
+var _warmup := 2
 var _auto_shot := false
+var _auto_gaze := AUTO_GAZE
 
 
 func _ready() -> void:
 	_mat_fog = _fog.material as ShaderMaterial
 	_mat_a = _fill_a.material as ShaderMaterial
 	_mat_b = _fill_b.material as ShaderMaterial
+	_mat_decode = _display.material as ShaderMaterial
 
 	# 320×180 的内部缓冲放大到全屏，必须 nearest——风格的一半在这里。
 	_display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -87,7 +104,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	if _auto_shot:
-		_gaze = AUTO_GAZE
+		_gaze = _auto_gaze
 	else:
 		_gaze = _mouse_uv()
 	_marker.aim = _gaze
@@ -140,9 +157,17 @@ func _push_params() -> void:
 		mat.set_shader_parameter("gaze_uv", _gaze)
 		mat.set_shader_parameter("gaze_radius", gaze_radius)
 		mat.set_shader_parameter("decay", decay)
+		mat.set_shader_parameter("keep_outside", keep_outside)
 		mat.set_shader_parameter("aspect", aspect)
 	if _mat_fog != null:
 		_mat_fog.set_shader_parameter("noise_strength", noise_strength)
+	if _mat_decode != null:
+		_mat_decode.set_shader_parameter("gaze_uv", _gaze)
+		_mat_decode.set_shader_parameter("gaze_radius", gaze_radius)
+		_mat_decode.set_shader_parameter("aspect", aspect)
+		_mat_decode.set_shader_parameter("internal_size", Vector2(internal_size))
+		_mat_decode.set_shader_parameter("density_outside", fog_outside)
+		_mat_decode.set_shader_parameter("density_inside", fog_inside)
 
 
 func _apply_internal_size() -> void:
@@ -158,6 +183,7 @@ func _apply_internal_size() -> void:
 		c.size = s
 	# 形状是按 320×180 画的，换内部分辨率时整体缩放，构图不跑。
 	_shapes.scale = s / Vector2(320.0, 180.0)
+	_push_params()
 
 
 func _input(event: InputEvent) -> void:
@@ -184,16 +210,13 @@ func capture_screenshot(prefix := "gaze") -> void:
 
 
 func _run_auto_shot() -> void:
-	# 自查用：注视点钉在墩台上等它显影，然后走和 F12 完全同一条路径截图退出。
-	await get_tree().create_timer(1.0).timeout
-	await capture_screenshot("check_t1")
-	await get_tree().create_timer(AUTO_SHOT_DELAY - 1.0).timeout
-	await capture_screenshot("gaze")
-	# 再隔两帧抓一张：两张之差就是「这一块还在不在动」，用来验证累积真的在抹平噪声。
-	await get_tree().process_frame
-	await get_tree().process_frame
-	await capture_screenshot("check_t2")
-	# 再等两秒抓一张：两张之差就是「雾还在不在动」。冻住了说明累积收敛成静止图。
+	# 自查用，走和 F12 完全同一条路径：
+	# 1 盯着墩台五秒 → 2 把视线移到空处 → 3 同一块再等两秒。
+	await get_tree().create_timer(5.0).timeout
+	await capture_screenshot("1_inside")
+	_auto_gaze = AWAY_GAZE
+	await get_tree().create_timer(0.4).timeout
+	await capture_screenshot("2_moved")
 	await get_tree().create_timer(2.0).timeout
-	await capture_screenshot("check_t3")
+	await capture_screenshot("3_moved_2s")
 	get_tree().quit()

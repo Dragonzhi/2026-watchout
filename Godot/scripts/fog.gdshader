@@ -1,19 +1,16 @@
 shader_type canvas_item;
 render_mode unshaded;
 
-// 这一层输出的不是屏幕颜色，是一帧「带偏移的编码」：
-//     v = 0.5 + 0.30 * scene + fog_signal       （fog_signal 的均值 ≈ 0）
-// Display 上的 decode.gdshader 把它减掉底座再放大回去。
-//
-// 为什么非这么绕：8 位缓冲没有负数。雾要被累积平均掉、又不能在注视圈里留下一层灰，
-// 就必须是零均值信号——亮的雾团（正）和暗的雾团（负）一样多。
-// 累积之后信号归零，露出来的就是底下的东西本身；周围那一帧里，正的一半把它糊掉、
-// 负的一半直接把它抹黑。
+// 闪烁层：零均值加法信号，进累积缓冲。
+// 它只负责「动」——振幅压到编码空间峰值 0.08，自己不许变成雪花。
+// 「看不清」由 decode.gdshader 里那层不累积的底雾负责。
 uniform sampler2D screen_tex : hint_screen_texture, filter_nearest;
-uniform float noise_strength : hint_range(0.0, 1.0) = 1.0;   // 雾的振幅（编码空间）
+uniform float noise_strength : hint_range(0.0, 1.0) = 1.0;
 uniform float time_scale : hint_range(0.0, 4.0) = 1.0;
 
-const vec3 FOG_COL = vec3(0.60, 0.67, 0.74);
+const float SCENE_SCALE = 0.45;
+const float FLICKER_PEAK = 0.08;
+const vec3 FOG_COL = vec3(0.62, 0.68, 0.74);
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -21,7 +18,6 @@ float hash12(vec2 p) {
 	return fract((p3.x + p3.y) * p3.z);
 }
 
-// 平滑插值的值噪声：放大 4 倍后是软团，不是沙点。
 float value_noise(vec2 p) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
@@ -46,28 +42,28 @@ float fbm(vec2 p) {
 
 void fragment() {
 	vec3 scene = texture(screen_tex, SCREEN_UV).rgb;
-	float t = TIME * time_scale;
+
+	// 时域整体降速十倍：一秒钟内看不出雾在变。
+	float t = TIME * time_scale * 0.1;
 	vec2 uv = SCREEN_UV;
 
-	// ── 形：域扭曲的多倍频噪声，横向慢漂，底边更厚（海面起雾）
-	vec2 q = uv * vec2(4.6, 2.7) + vec2(t * 0.026, -t * 0.006);
-	float w1 = fbm(q * 0.62 + vec2(t * 0.011, 0.0));
-	float w2 = fbm(q * 0.62 + vec2(7.3, 2.1) - vec2(0.0, t * 0.009));
+	// 雾团的结构：域扭曲的多倍频噪声，慢漂，底边略厚
+	vec2 q = uv * vec2(4.6, 2.7) + vec2(t * 0.28, -t * 0.07);
+	float w1 = fbm(q * 0.62 + vec2(t * 0.12, 0.0));
+	float w2 = fbm(q * 0.62 + vec2(7.3, 2.1) - vec2(0.0, t * 0.10));
 	float big = fbm(q + vec2(w1 * 1.5 - w2 * 0.5, w2 * 0.9));
-	float mid = fbm(uv * vec2(12.0, 7.0) + vec2(-t * 0.045, t * 0.018) + w1 * 0.6);
-	float raw = big * 0.65 + mid * 0.35;
-	float shape = smoothstep(0.28, 0.84, raw);                  // 雾团的结构，0..1
-	float thick = mix(0.55, 1.30, smoothstep(0.0, 0.88, uv.y));  // 底边厚的只是振幅，不是均值
+	float mid = fbm(uv * vec2(12.0, 7.0) + vec2(-t * 0.50, t * 0.20) + w1 * 0.6);
+	float shape = smoothstep(0.28, 0.84, big * 0.65 + mid * 0.35);
 
-	// ── 动：十来个内像素一团的软噪声，每帧换相位。
-	// 刻意不用逐像素哈希——那在 Nearest 放大后是满屏沙点，就是「灰尘」的来源。
-	float phase = floor(t * 22.0);
-	float boil = value_noise(uv * vec2(26.0, 15.0) + vec2(phase * 4.13, phase * 2.71));
+	// 沸腾：软噪声在慢慢淌，不再每帧重掷相位
+	float boil = value_noise(uv * vec2(26.0, 15.0) + vec2(t * 3.0, -t * 2.0));
 
-	// ── 零均值信号：亮的雾团（正）与暗的雾团（负）一样多，累积之后什么都不留。
-	// 底边更厚只放大振幅、不抬高均值，否则注视圈里会慢慢积出一层灰。
-	float signal = ((shape - 0.46) * 0.80 + (boil - 0.50) * 0.78) * thick;
+	// 底边更厚只放大振幅，不抬高均值
+	float thick = mix(0.55, 1.15, smoothstep(0.0, 0.88, uv.y));
 
-	vec3 enc = vec3(0.5) + scene * 0.30 + FOG_COL * signal * noise_strength * 0.36;
+	// 零均值信号：正负一样多，累积之后什么都不留
+	float signal = ((shape - 0.46) * 0.80 + (boil - 0.50) * 0.55) * thick;
+
+	vec3 enc = vec3(0.5) + scene * SCENE_SCALE + FOG_COL * clamp(signal, -1.0, 1.0) * FLICKER_PEAK * noise_strength;
 	COLOR = vec4(clamp(enc, 0.0, 1.0), 1.0);
 }
