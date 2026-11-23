@@ -1,0 +1,83 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/accum_controller.gd" id="1_ctrl"]
+[ext_resource type="Shader" path="res://scripts/fog.gdshader" id="2_fog"]
+[ext_resource type="Script" path="res://scripts/shapes.gd" id="3_shapes"]
+[ext_resource type="Shader" path="res://scripts/accumulate.gdshader" id="4_acc"]
+[ext_resource type="Script" path="res://scripts/gaze_marker.gd" id="5_gaze"]
+
+[sub_resource type="ShaderMaterial" id="Mat_fog"]
+shader = ExtResource("2_fog")
+
+[sub_resource type="ShaderMaterial" id="Mat_acc_a"]
+shader = ExtResource("4_acc")
+
+[sub_resource type="ShaderMaterial" id="Mat_acc_b"]
+shader = ExtResource("4_acc")
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_ctrl")
+
+[node name="SceneView" type="SubViewport" parent="."]
+size = Vector2i(320, 180)
+render_target_update_mode = 4
+handle_input_locally = false
+
+[node name="Black" type="ColorRect" parent="SceneView"]
+offset_right = 320.0
+offset_bottom = 180.0
+color = Color(0, 0, 0, 1)
+
+[node name="Shapes" type="Node2D" parent="SceneView"]
+script = ExtResource("3_shapes")
+
+[node name="BackBufferCopy" type="BackBufferCopy" parent="SceneView"]
+copy_mode = 2
+
+[node name="Fog" type="ColorRect" parent="SceneView"]
+material = SubResource("Mat_fog")
+offset_right = 320.0
+offset_bottom = 180.0
+mouse_filter = 2
+
+[node name="AccumA" type="SubViewport" parent="."]
+size = Vector2i(320, 180)
+render_target_update_mode = 4
+handle_input_locally = false
+
+[node name="Fill" type="ColorRect" parent="AccumA"]
+material = SubResource("Mat_acc_a")
+offset_right = 320.0
+offset_bottom = 180.0
+
+[node name="AccumB" type="SubViewport" parent="."]
+size = Vector2i(320, 180)
+render_target_update_mode = 0
+handle_input_locally = false
+
+[node name="Fill" type="ColorRect" parent="AccumB"]
+material = SubResource("Mat_acc_b")
+offset_right = 320.0
+offset_bottom = 180.0
+
+[node name="Display" type="TextureRect" parent="."]
+texture_filter = 1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+
+[node name="GazeLayer" type="CanvasLayer" parent="."]
+
+[node name="GazeMarker" type="Node2D" parent="GazeLayer"]
+script = ExtResource("5_gaze")
