@@ -1,103 +1,104 @@
 extends Node2D
 
-## 雾里三个静止目标。它们不动；雾在动。
-## 累积把动的东西平均掉，不动的东西才浮出来——所以「盯久了会显影」。
-## 现在只是占位剪影，后面换成真的船／墩／礁。
+## 远景：天与海。画在 SceneView 里，所以它会被雾吃、也会被累积——
+## 「盯久了才看得清」说的是这一层。近景两层不在这儿，它们在 Display 之上。
 ##
-## 轮廓刻意做碎：桅索、栏杆、砌石、碎礁。同样的低对比下，
-## 边缘越多越难认出「是什么」；再加一圈 1px 的暗边，当距离羽化用。
+## 三件事决定这层像不像海，不是颜色：
+##   渐变按 1px 一行画——大块的色带在 320×180 上会读成扫描线；
+##   涌线的间距越往下越宽（透视），海才有进深，否则是一块灰板；
+##   近水里有碎光，而且必须落在垛口能看见的那一条里（y 130–145），
+##   「海的光」是从那儿透进前景的，不是一团平均亮。
+##
+## 所有坐标按 320×180 画；控制器按内部分辨率缩放本节点，并按视差系数推 drift。
 
-const INK := Color(0.185, 0.170, 0.140)
-const SHADE := Color(0.105, 0.098, 0.082)
-const RIM := Color(0.052, 0.048, 0.042)
-const FAR := 0.88   # 礁石更远一档，整体压暗
+const W := 320.0
+const H := 180.0
+const BLEED := 16.0
+const HORIZON_Y := 72.0
+
+const SKY_HIGH := Color(0.520, 0.548, 0.592)
+const SKY_LOW := Color(0.638, 0.658, 0.690)
+const HORIZON := Color(0.740, 0.756, 0.776)
+const SEA_FAR := Color(0.618, 0.634, 0.660)
+const SEA_NEAR := Color(0.216, 0.228, 0.250)
+const SWELL := Color(0.780, 0.795, 0.815)
+const GLINT := Color(0.600, 0.612, 0.632)
+
+## 碎光：(x, y, 宽度)。y 全落在 131–143，也就是垛口能看见的那一条。
+## 位置写死——它得每帧一样，累积才记得住。
+const GLINTS := [
+	[7.0, 134.0, 3.0], [24.0, 140.0, 4.0], [38.0, 133.0, 3.0],
+	[56.0, 142.0, 5.0], [71.0, 136.0, 3.0], [86.0, 139.0, 4.0],
+	[104.0, 132.0, 3.0], [119.0, 143.0, 4.0], [135.0, 137.0, 5.0],
+	[152.0, 134.0, 3.0], [168.0, 141.0, 4.0], [184.0, 136.0, 3.0],
+	[201.0, 142.0, 5.0], [217.0, 133.0, 3.0], [233.0, 139.0, 4.0],
+	[249.0, 135.0, 3.0], [266.0, 143.0, 4.0], [281.0, 137.0, 5.0],
+	[298.0, 134.0, 3.0], [313.0, 141.0, 4.0],
+]
+
+## 视差位移，单位是 320×180 空间里的像素；由控制器按注视点推。
+## 海是最远的一层，系数 0.25，几乎不动——它一动，整屏就跟着晃。
+var drift := Vector2.ZERO:
+	set(value):
+		if drift.is_equal_approx(value):
+			return
+		drift = value
+		queue_redraw()
 
 
 func _draw() -> void:
-	_draw_boat()
-	_draw_tower()
-	_draw_reef()
+	_draw_sky()
+	_draw_sea()
+	_draw_glints()
 
 
-func _draw_boat() -> void:
-	# 船身：船底被近景压掉，留下的是一条斜的船舷和帆。
-	var hull := PackedVector2Array([
-		Vector2(44, 128), Vector2(106, 128), Vector2(99, 142), Vector2(52, 142),
-	])
-	_poly(hull, INK)
-	_poly(PackedVector2Array([
-		Vector2(52, 136), Vector2(99, 136), Vector2(96, 142), Vector2(55, 142),
-	]), SHADE)
-	# 艉柱
-	_rect(Rect2(101, 116, 3, 13), INK)
-	# 桅与帆
-	_rect(Rect2(72, 96, 2, 33), INK)
-	_poly(PackedVector2Array([
-		Vector2(75, 99), Vector2(75, 125), Vector2(96, 122),
-	]), INK)
-	_poly(PackedVector2Array([
-		Vector2(75, 114), Vector2(75, 125), Vector2(96, 122), Vector2(86, 116),
-	]), SHADE)
-	# 桅索：两根线，把船的形状拉散
-	_rect(Rect2(74, 100, 1, 27), SHADE)
-	_rect(Rect2(84, 108, 26, 1), SHADE)
-	# 桅顶三角旗
-	_poly(PackedVector2Array([
-		Vector2(74, 96), Vector2(84, 98), Vector2(74, 100),
-	]), SHADE)
+func _draw_sky() -> void:
+	for i in int(HORIZON_Y):
+		var t := float(i) / HORIZON_Y
+		draw_rect(Rect2(-BLEED + drift.x, float(i) + drift.y,
+			W + BLEED * 2.0, 1.2), SKY_HIGH.lerp(SKY_LOW, t))
+	# 地平线：一条细亮线，是整幅画的远极
+	draw_rect(Rect2(-BLEED + drift.x, HORIZON_Y - 1.0 + drift.y,
+		W + BLEED * 2.0, 1.5), HORIZON)
 
 
-func _draw_tower() -> void:
-	# 塔身
-	_rect(Rect2(150, 104, 20, 44), INK)
-	_rect(Rect2(150, 104, 5, 44), SHADE)
-	# 平台
-	_rect(Rect2(146, 98, 28, 7), INK)
-	_rect(Rect2(146, 98, 6, 7), SHADE)
-	# 垛口
-	for i in 3:
-		_rect(Rect2(146 + i * 10, 90, 6, 9), INK)
-		_rect(Rect2(146 + i * 10, 90, 2, 9), SHADE)
-	# 砌石错缝：两处缺口，让塔身不是一块砖
-	_rect(Rect2(160, 112, 7, 2), SHADE)
-	_rect(Rect2(153, 124, 6, 2), SHADE)
-	_rect(Rect2(161, 136, 6, 2), SHADE)
-	# 外侧挑出一根瞭望横木
-	_rect(Rect2(170, 110, 12, 2), SHADE)
-	_rect(Rect2(180, 110, 2, 5), SHADE)
+func _draw_sea() -> void:
+	var span := H - HORIZON_Y
+	for i in int(span):
+		var t := float(i) / span
+		draw_rect(Rect2(-BLEED + drift.x, HORIZON_Y + float(i) + drift.y,
+			W + BLEED * 2.0, 1.2), SEA_FAR.lerp(SEA_NEAR, pow(t, 0.72)))
+
+	# 涌线：间隔随距离拉开（透视）。这是「海有进深」唯一的证据，
+	# 三层错开的时候，眼睛就是拿这几条线当标尺的。
+	var y := HORIZON_Y + 3.0
+	var k := 0
+	while y < H:
+		var col := Color(SWELL.r, SWELL.g, SWELL.b, 0.105 + 0.022 * minf(float(k), 4.0))
+		var amp := 0.5 + float(k) * 0.14
+		var prev := Vector2.ZERO
+		var first := true
+		var x := -BLEED
+		while x <= W + BLEED:
+			var yy := y + sin(x * 0.043 + float(k) * 1.9) * amp
+			var p := Vector2(x + drift.x, yy + drift.y)
+			if not first:
+				draw_line(prev, p, col, 1.2)
+			prev = p
+			first = false
+			x += 10.0
+		y += 1.8 + float(k) * 1.24
+		k += 1
 
 
-func _draw_reef() -> void:
-	var reef := Color(INK.r, INK.g, INK.b).darkened(1.0 - FAR)
-	var reef_shade := Color(SHADE.r, SHADE.g, SHADE.b).darkened(1.0 - FAR)
-	# 主礁
-	_poly(PackedVector2Array([
-		Vector2(220, 150), Vector2(226, 137), Vector2(234, 127), Vector2(244, 123),
-		Vector2(252, 129), Vector2(258, 138), Vector2(264, 150),
-	]), reef)
-	# 旁边一块矮的
-	_poly(PackedVector2Array([
-		Vector2(266, 150), Vector2(272, 140), Vector2(281, 139), Vector2(288, 150),
-	]), reef_shade)
-	# 立着的一块尖岩，把轮廓打散
-	_poly(PackedVector2Array([
-		Vector2(238, 123), Vector2(241, 113), Vector2(246, 116), Vector2(245, 125),
-	]), reef_shade)
-
-
-func _poly(pts: PackedVector2Array, fill: Color) -> void:
-	# 先在外圈铺一层更暗的边（羽化），再填主体
-	var center := Vector2.ZERO
-	for p in pts:
-		center += p
-	center /= float(pts.size())
-	var grown := PackedVector2Array()
-	for p in pts:
-		grown.append(p + (p - center).normalized() * 1.2)
-	draw_colored_polygon(grown, RIM)
-	draw_colored_polygon(pts, fill)
-
-
-func _rect(r: Rect2, fill: Color) -> void:
-	draw_rect(Rect2(r.position - Vector2(1.2, 1.2), r.size + Vector2(2.4, 2.4)), RIM)
-	draw_rect(r, fill)
+func _draw_glints() -> void:
+	# 碎光：垛口里那点「亮」从这里来。平均亮度给不出这个——
+	# 有光点，缺口才像透过去的，而不是一块灰面板。
+	for g in GLINTS:
+		var gx := float(g[0]) + drift.x
+		var gy := float(g[1]) + drift.y
+		draw_rect(Rect2(gx, gy, float(g[2]), 1.0), GLINT)
+		draw_rect(Rect2(gx + 1.0, gy - 1.0, maxf(float(g[2]) - 2.0, 1.0), 1.0),
+			Color(GLINT.r, GLINT.g, GLINT.b, 0.5))
+		draw_rect(Rect2(gx + 1.0, gy + 1.0, maxf(float(g[2]) - 2.0, 1.0), 1.0),
+			Color(GLINT.r, GLINT.g, GLINT.b, 0.35))

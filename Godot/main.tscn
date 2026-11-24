@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/accum_controller.gd" id="1_ctrl"]
 [ext_resource type="Shader" path="res://scripts/fog.gdshader" id="2_fog"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/gaze_marker.gd" id="5_gaze"]
 [ext_resource type="Shader" path="res://scripts/decode.gdshader" id="6_decode"]
 [ext_resource type="Script" path="res://scripts/foreground.gd" id="7_fg"]
+[ext_resource type="Script" path="res://scripts/midground.gd" id="8_mid"]
 
 [sub_resource type="ShaderMaterial" id="Mat_fog"]
 shader = ExtResource("2_fog")
@@ -86,6 +87,9 @@ expand_mode = 1
 
 [node name="NearLayer" type="CanvasLayer" parent="."]
 layer = 2
+
+[node name="Midground" type="Node2D" parent="NearLayer"]
+script = ExtResource("8_mid")
 
 [node name="Foreground" type="Node2D" parent="NearLayer"]
 script = ExtResource("7_fg")

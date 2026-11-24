@@ -10,8 +10,50 @@ extends Control
 ## 结构：SceneView（雾＋目标）→ AccumA／AccumB 交替累积 → Display 解码并叠底雾。
 ## 硬约束：一个 SubViewport 只读另一个的上一帧、写自己；写完交换角色，绝不读自己。
 
-const AUTO_GAZE := Vector2(0.503, 0.61)   # 墩台
-const AWAY_GAZE := Vector2(0.16, 0.32)    # 空处，用来验「移开视线就重新糊上」
+# 自查用的三个注视位置：海面、女墙、火盆。
+const GAZE_SEA := Vector2(0.520, 0.520)   # 海面正中，离地平线远一点
+const GAZE_WALL := Vector2(0.335, 0.880)  # 墙身
+const GAZE_FIRE := Vector2(0.773, 0.800)  # 火盆
+
+@export_group("构图")
+
+## 女墙（含垛口）占画面高度的比例。
+##
+## 越大，人越贴着墙：0.20 是趴在垛口上往外看，0.40 是墙到胸口、石滩被吃掉半条。
+## 三层的高度全部由它和 Mid Ratio 推出来，改一个，另外两层跟着让位。
+@export_range(0.20, 0.40, 0.005) var fore_ratio: float = 0.28:
+	set(value):
+		fore_ratio = clampf(value, 0.20, 0.40)
+		_layout()
+
+## 石滩过渡带的高度比例。它坐在海与女墙之间，越薄越像远景、越厚越像脚边。
+@export_range(0.06, 0.20, 0.005) var mid_ratio: float = 0.12:
+	set(value):
+		mid_ratio = clampf(value, 0.06, 0.20)
+		_layout()
+
+## 注视点带动整体位移的最大幅度，单位是 320×180 空间里的像素。
+##
+## 幅度只能是「小」：位移一大，累积就把整屏抹成拖影，看起来像回到雪花那天。
+@export_range(0.0, 14.0, 0.1) var drift_amount: float = 6.5:
+	set(value):
+		drift_amount = clampf(value, 0.0, 14.0)
+
+## 位移跟住注视点的速度。越小越黏越慢；1.4 大约两秒才走完大半。
+##
+## 慢是硬要求，不是手感偏好：快移的层会被累积糊成拖影。
+@export_range(0.2, 6.0, 0.05) var drift_speed: float = 1.4:
+	set(value):
+		drift_speed = clampf(value, 0.2, 6.0)
+
+## 女墙的视差系数。人就贴在它后面，视线一动它动得最多。
+@export_range(0.0, 1.5, 0.01) var parallax_near: float = 1.0
+
+## 石滩的视差系数。夹在墙与海中间，动一半。
+@export_range(0.0, 1.5, 0.01) var parallax_mid: float = 0.55
+
+## 海面的视差系数。它最远，几乎不动——它一动，整屏就跟着晃。
+@export_range(0.0, 1.5, 0.01) var parallax_far: float = 0.25
 
 @export_group("累积")
 
@@ -112,8 +154,9 @@ const AWAY_GAZE := Vector2(0.16, 0.32)    # 空处，用来验「移开视线就
 @onready var _fill_a: ColorRect = $AccumA/Fill
 @onready var _fill_b: ColorRect = $AccumB/Fill
 @onready var _marker: Node2D = $GazeLayer/GazeMarker
-@onready var _shapes: Node2D = $SceneView/Shapes
-@onready var _foreground: Node2D = $NearLayer/Foreground
+@onready var _shapes := $SceneView/Shapes
+@onready var _mid := $NearLayer/Midground
+@onready var _fore := $NearLayer/Foreground
 
 var _mat_fog: ShaderMaterial
 var _mat_a: ShaderMaterial
@@ -125,10 +168,12 @@ var _tex_a: ViewportTexture
 var _tex_b: ViewportTexture
 
 var _gaze := Vector2(0.5, 0.5)
+## 当前整体位移（带阻尼）。三个视差层各取它的一份，方向相反。
+var _drift := Vector2.ZERO
 var _write_a := true
 var _warmup := 2
 var _auto_shot := false
-var _auto_gaze := AUTO_GAZE
+var _auto_gaze := GAZE_SEA
 
 
 func _ready() -> void:
@@ -160,20 +205,22 @@ func _ready() -> void:
 	print("[gaze] display rect=", _display.get_rect(), " viewport=", get_viewport_rect().size,
 		" internal=", internal_size)
 
-	_fit_foreground()
-	get_viewport().size_changed.connect(_fit_foreground)
+	_layout()
+	_fit_near_layers()
+	get_viewport().size_changed.connect(_fit_near_layers)
 
 	_auto_shot = "--shot" in OS.get_cmdline_user_args()
 	if _auto_shot:
 		_run_auto_shot()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _auto_shot:
 		_gaze = _auto_gaze
 	else:
 		_gaze = _mouse_uv()
 	_marker.aim = _gaze
+	_update_drift(delta)
 	_push_params()
 	_swap_buffers()
 
@@ -252,13 +299,47 @@ func _apply_internal_size() -> void:
 		c.size = s
 	# 形状是按 320×180 画的，换内部分辨率时整体缩放，构图不跑。
 	_shapes.scale = s / Vector2(320.0, 180.0)
-	_fit_foreground()
+	_fit_near_layers()
+	_layout()
 	_push_params()
 
 
-func _fit_foreground() -> void:
-	if _foreground != null:
-		_foreground.scale = get_viewport_rect().size / Vector2(320.0, 180.0)
+func _fit_near_layers() -> void:
+	# 近景两层按 320×180 画，整体缩放到窗口。
+	# 节点位置留在原点：位移在各自的 _draw() 里做，否则会被缩放乘第二遍。
+	var s := get_viewport_rect().size / Vector2(320.0, 180.0)
+	for n in [_mid, _fore]:
+		if n != null:
+			n.scale = s
+
+
+func _layout() -> void:
+	# 三层高度全从两个比例推出来：改一个，另外两层跟着让位。
+	if not is_node_ready():
+		return
+	var h := 180.0
+	var fore_top := h * (1.0 - fore_ratio)
+	if _fore != null:
+		_fore.top_y = fore_top
+	if _mid != null:
+		_mid.top_y = fore_top - h * mid_ratio
+		_mid.height = h * mid_ratio
+		_mid.queue_redraw()
+
+
+func _update_drift(delta: float) -> void:
+	# 注视点推一个很小的整体位移，重阻尼跟过去。
+	# 三层的系数不同，所以视线一动它们就错开——纵深感是从这儿来的，不是画出来的。
+	var target := (_gaze - Vector2(0.5, 0.5)) * 2.0 * drift_amount
+	_drift = _drift.lerp(target, 1.0 - exp(-delta * drift_speed))
+	if _shapes != null:
+		# 海在累积里：位移取整。亚像素的西微挪动会被累积抹成整片拖影。
+		_shapes.drift = Vector2(
+			round(-_drift.x * parallax_far), round(-_drift.y * parallax_far))
+	if _mid != null:
+		_mid.drift = -_drift * parallax_mid
+	if _fore != null:
+		_fore.drift = -_drift * parallax_near
 
 
 func _input(event: InputEvent) -> void:
@@ -287,11 +368,16 @@ func capture_screenshot(prefix := "gaze") -> void:
 func _run_auto_shot() -> void:
 	# 自查用，走和 F12 完全同一条路径：
 	# 1 盯着墩台五秒 → 2 把视线移到空处 → 3 同一块再等两秒。
-	await get_tree().create_timer(5.0).timeout
-	await capture_screenshot("1_inside")
-	_auto_gaze = AWAY_GAZE
-	await get_tree().create_timer(0.4).timeout
-	await capture_screenshot("2_moved")
-	await get_tree().create_timer(2.0).timeout
-	await capture_screenshot("3_moved_2s")
+	await get_tree().create_timer(4.0).timeout
+	await capture_screenshot("1_gaze_sea")
+	_auto_gaze = GAZE_WALL
+	await get_tree().create_timer(3.5).timeout
+	await capture_screenshot("2_gaze_wall")
+	_auto_gaze = GAZE_FIRE
+	await get_tree().create_timer(3.0).timeout
+	await capture_screenshot("3_gaze_fire")
+	fore_ratio = 0.40
+	_auto_gaze = GAZE_WALL
+	await get_tree().create_timer(3.0).timeout
+	await capture_screenshot("4_wall_040")
 	get_tree().quit()
